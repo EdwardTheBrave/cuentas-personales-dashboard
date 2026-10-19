@@ -23,7 +23,7 @@ def main():
     title = (m.group(1) if m else 'Cuentas Personales').replace('<', '').replace('>', '')
 
     page = (ROOT / 'src/app.html').read_text(encoding='utf8')
-    model = (ROOT / 'src/model.js').read_text(encoding='utf8')
+    model = (ROOT / 'src/model.js').read_text(encoding='utf8') + '\n' + (ROOT / 'src/agent.js').read_text(encoding='utf8')
     for marker in ('/*__CONFIG__*/', '/*__MODEL__*/', '__TITLE__'):
         if marker not in page:
             sys.exit(f'Falta el marcador {marker} en src/app.html')

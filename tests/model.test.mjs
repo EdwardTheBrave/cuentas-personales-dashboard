@@ -75,3 +75,22 @@ test('inversiones: capital vivo y P&L realizado por posición', () => {
   assert.equal(pos.Proyecto_Demo.live, 5000);
   assert.equal(pos.Indexado_Global.live, 150 * 24);
 });
+
+test('agente: el resumen cabe en el prompt y las herramientas responden', () => {
+  const A = require('../src/agent.js');
+  const wb = sample();
+  const data = M.parseWorkbook(XLSX, wb);
+  const ctx = { data, months: M.monthRange(data), groups: [{ name: 'Operativo', accounts: ['Nómina', 'Gastos', 'Hogar'] }], invOps: M.parseInvestments(XLSX, wb).ops, today: '1 de enero de 2027' };
+  const prompt = A.instructions(ctx);
+  assert.ok(Buffer.byteLength(prompt) < 150 * 1024);
+  const T = Object.fromEntries(A.tools(ctx).map((t) => [t.name, t]));
+  assert.deepEqual(Object.keys(T).sort(), ['balances', 'calc', 'investments', 'list_transactions', 'query_flows', 'transfers']);
+  const sal = T.query_flows.execute({ subcategories: ['Salary'], group_by: ['year'] });
+  assert.ok(sal.filas.length >= 2 && sal.total.ingresos > 0);
+  const all = T.balances.execute({ by: 'total' }), ex = T.balances.execute({ exclude_accounts: ['Inversiones'] });
+  assert.ok(ex.filas.at(-1).total < all.filas.at(-1).total);
+  assert.ok(!ex.cuentas_incluidas.includes('Inversiones'));
+  assert.equal(T.calc.execute({ expression: '(1000-250)/3' }).resultado, 250);
+  assert.throws(() => T.calc.execute({ expression: 'alert(1)' }));
+  assert.ok(T.transfers.execute({ account: 'Inversiones', group_by: 'year' }).filas.length > 0);
+});

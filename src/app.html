@@ -244,6 +244,40 @@ tr:last-child td { border-bottom: 0; }
 .dropzone { background: var(--surface); border: 2px dashed var(--line-2); border-radius: var(--r); padding: 40px 24px; display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center; max-width: 640px; margin: 24px auto; }
 .dropzone p { margin: 0; color: var(--ink-2); max-width: 52ch; }
 body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent); outline-offset: -6px; }
+/* Preguntar a tus datos */
+.askfab { position: fixed; right: calc(20px + env(safe-area-inset-right, 0px)); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 40;
+  background: var(--accent); color: var(--surface); border: 0; border-radius: 999px; padding: 12px 20px; font-weight: 700; font-size: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+.askfab:hover { filter: brightness(1.08); }
+.askpanel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 60; width: min(480px, 100vw); background: var(--surface); color: var(--ink);
+  box-shadow: -12px 0 40px rgba(0,0,0,.35); display: flex; flex-direction: column;
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); padding-right: env(safe-area-inset-right, 0px); }
+.askhead { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 16px; background: var(--band); color: var(--band-ink); }
+.askhead .eyebrow { color: rgba(255,255,255,.72); }
+.askhead h2 { font-size: 17px; }
+.askhead .btn { background: transparent; color: var(--band-ink); border-color: rgba(255,255,255,.35); }
+.asklog { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; background: var(--surface-2); }
+.askintro { display: flex; flex-direction: column; gap: 10px; color: var(--ink-2); }
+.askintro p { margin: 0; }
+.asksug { display: flex; flex-direction: column; gap: 6px; }
+.chipbtn { text-align: left; border: 1px solid var(--line-2); background: var(--surface); border-radius: 10px; padding: 8px 12px; font-size: 13px; color: var(--ink); }
+.chipbtn:hover { border-color: var(--accent); background: var(--accent-soft); }
+.msg { border-radius: 12px; padding: 10px 14px; font-size: 13.5px; line-height: 1.5; max-width: 100%; min-width: 0; }
+.msg.user { align-self: flex-end; background: var(--accent); color: var(--surface); max-width: 85%; white-space: pre-wrap; }
+.msg.bot { align-self: stretch; background: var(--surface); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.msg.bot .body p { margin: 0 0 8px; } .msg.bot .body p:last-child { margin-bottom: 0; }
+.msg.bot .body ul, .msg.bot .body ol { margin: 0 0 8px; padding-left: 20px; }
+.msg.bot .body h4 { margin: 6px 0 4px; font-size: 13.5px; }
+.msg.bot .body .tablebox { margin: 4px 0 8px; }
+.msg.bot .body code { font-family: var(--font-num); font-size: 12px; background: var(--surface-2); padding: 1px 4px; border-radius: 4px; }
+.thinking { display: flex; gap: 8px; align-items: center; color: var(--muted); }
+.spin { width: 14px; height: 14px; border: 2px solid var(--line-2); border-top-color: var(--accent); border-radius: 50%; animation: rot .8s linear infinite; }
+@keyframes rot { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+.calls summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+.calls ol { margin: 6px 0 0; padding-left: 18px; font-family: var(--font-num); font-size: 11px; color: var(--ink-2); word-break: break-word; }
+.askform { padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); }
+.askform textarea { width: 100%; resize: vertical; min-height: 64px; border: 1px solid var(--line-2); border-radius: 8px; padding: 8px 10px; font: inherit; background: var(--surface); color: var(--ink); }
+.askform textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; }
 @media (max-width: 1080px) {
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .kpi.hero { grid-column: span 2; }
@@ -295,6 +329,21 @@ body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent)
 
   <p class="hint" id="footnote" hidden></p>
 </div>
+
+
+<button type="button" class="askfab" id="askFab" hidden aria-expanded="false" aria-controls="askPanel">Preguntar a tus datos</button>
+<aside class="askpanel" id="askPanel" hidden aria-label="Preguntar a tus datos">
+  <header class="askhead">
+    <div><span class="eyebrow">Claude</span><h2>Preguntar a tus datos</h2></div>
+    <div class="frow"><button type="button" class="btn" id="askNew">Nueva conversación</button><button type="button" class="btn" id="askClose" aria-label="Cerrar">✕</button></div>
+  </header>
+  <div class="asklog" id="askLog" aria-live="polite"></div>
+  <form class="askform" id="askForm">
+    <label class="hint" for="askInput">Tu pregunta</label>
+    <textarea id="askInput" rows="3" placeholder="p. ej. ¿cuánto he ahorrado de media al año sin contar una cuenta concreta?"></textarea>
+    <div class="frow"><button type="submit" class="btn primary" id="askSend">Preguntar</button><button type="button" class="btn" id="askStop" hidden>Detener</button><span class="hint">Intro para enviar · Mayús+Intro para nueva línea</span></div>
+  </form>
+</aside>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
@@ -468,6 +517,7 @@ body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent)
     renderAll();
     ingestInv(wb);
     setView(VIEW);
+    updateAskFab();
   }
 
   // ---------- Dimensiones y colores estables ----------
@@ -1398,12 +1448,152 @@ body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent)
     else Object.keys(charts).forEach(function (k) { charts[k].resize(); });
   }
 
+  // ---------- Preguntar a tus datos (capacidad sample) ----------
+  var ASK = { fn: null, ok: false, turns: [], busy: false, ctl: null };
+  var ASK_SUGGEST = [
+    '¿En qué subcategorías he gastado más este año que el anterior?',
+    '¿Cuál ha sido mi tasa de ahorro por año?',
+    '¿Cómo ha evolucionado mi patrimonio en los últimos 12 meses y por qué?'
+  ];
+  function mdInline(s) {
+    return s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>');
+  }
+  // Markdown mínimo y seguro: el texto se escapa antes de dar formato.
+  function md(text) {
+    var lines = esc(text).split('\n'), out = [], i = 0;
+    var isRow = function (x) { return /^\s*\|.*\|\s*$/.test(x); };
+    var isItem = function (x) { return /^\s*([-*•]|\d+\.)\s+/.test(x); };
+    while (i < lines.length) {
+      var l = lines[i];
+      if (isRow(l)) {
+        var rows = [];
+        while (i < lines.length && isRow(lines[i])) { rows.push(lines[i]); i++; }
+        rows = rows.filter(function (r) { return !/^\s*\|[\s:|-]+\|\s*$/.test(r); });
+        out.push('<div class="tablebox"><table>' + rows.map(function (r, ri) {
+          var cells = r.trim().replace(/^\||\|$/g, '').split('|');
+          return '<tr>' + cells.map(function (c) {
+            var t = ri === 0 ? 'th' : 'td', n = /^\s*[-+−]?[\d.,]+\s*(€|%)?\s*$/.test(c);
+            return '<' + t + (n ? ' class="r num"' : '') + '>' + mdInline(c.trim()) + '</' + t + '>';
+          }).join('') + '</tr>';
+        }).join('') + '</table></div>');
+        continue;
+      }
+      if (isItem(l)) {
+        var ordered = /^\s*\d+\./.test(l), items = [];
+        while (i < lines.length && isItem(lines[i])) { items.push(lines[i].replace(/^\s*([-*•]|\d+\.)\s+/, '')); i++; }
+        var tag = ordered ? 'ol' : 'ul';
+        out.push('<' + tag + '>' + items.map(function (x) { return '<li>' + mdInline(x) + '</li>'; }).join('') + '</' + tag + '>');
+        continue;
+      }
+      var h = l.match(/^\s*#{1,4}\s+(.*)$/);
+      if (h) { out.push('<h4>' + mdInline(h[1]) + '</h4>'); i++; continue; }
+      if (!l.trim()) { i++; continue; }
+      var para = [];
+      while (i < lines.length && lines[i].trim() && !isRow(lines[i]) && !isItem(lines[i]) && !/^\s*#/.test(lines[i])) { para.push(lines[i]); i++; }
+      out.push('<p>' + mdInline(para.join('<br>')) + '</p>');
+    }
+    return out.join('');
+  }
+  function askCtx() {
+    return { data: DATA, months: MONTHS, groups: GROUPS, invOps: INV ? INV.ops : [],
+      today: new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) };
+  }
+  function updateAskFab() { $('askFab').hidden = !(ASK.ok && DATA); }
+  function openAsk(open) {
+    $('askPanel').hidden = !open;
+    $('askFab').setAttribute('aria-expanded', String(open));
+    if (open) { renderAskEmpty(); setTimeout(function () { $('askInput').focus(); }, 30); }
+  }
+  function renderAskEmpty() {
+    if (ASK.turns.length || $('askLog').children.length) return;
+    $('askLog').innerHTML = '<div class="askintro"><p>Pregunta lo que quieras sobre tus cuentas e inversiones. Claude consulta tus datos con las mismas reglas que los gráficos y responde aquí.</p>' +
+      '<div class="asksug">' + ASK_SUGGEST.map(function (s) { return '<button type="button" class="chipbtn">' + esc(s) + '</button>'; }).join('') + '</div>' +
+      '<p class="hint">Usa todos los datos, sin los filtros del dashboard. Funciona con tu cuenta de Claude; la primera vez te pide permiso. Las preguntas complejas pueden tardar uno o dos minutos.</p></div>';
+    $('askLog').querySelectorAll('.chipbtn').forEach(function (b) { b.onclick = function () { $('askInput').value = b.textContent; askSend(); }; });
+  }
+  var ASK_ERR = {
+    not_granted: 'No se ha dado permiso a esta página para usar Claude. Puedes activarlo desde el menú de permisos del artifact.',
+    sampling_disabled: 'Claude no está disponible para esta cuenta u organización.',
+    tools_unavailable: 'Esta vista no puede ejecutar las consultas de datos que necesita el asistente.',
+    rate_limited: 'Has alcanzado el límite de uso de momento. Prueba de nuevo en un rato.',
+    session_expired: 'La sesión de claude.ai ha caducado. Vuelve a iniciar sesión y recarga.',
+    prompt_too_large: 'La conversación es demasiado larga. Pulsa «Nueva conversación».',
+    refused: 'Claude no ha respondido a esta pregunta. Prueba a formularla de otra manera.',
+    empty_completion: 'Claude no ha devuelto respuesta. Prueba con una pregunta más concreta.'
+  };
+  function askSend() {
+    var q = $('askInput').value.trim();
+    if (!q || ASK.busy || !ASK.fn || !DATA) return;
+    $('askInput').value = '';
+    var intro = $('askLog').querySelector('.askintro'); if (intro) intro.remove();
+    ASK.turns.push({ role: 'user', content: q });
+    var log = $('askLog');
+    var u = document.createElement('div'); u.className = 'msg user'; u.textContent = q; log.appendChild(u);
+    var a = document.createElement('div'); a.className = 'msg bot';
+    a.innerHTML = '<div class="thinking"><span class="spin"></span><span class="tstat">Pensando…</span></div><div class="body"></div>' +
+      '<details class="calls" hidden><summary></summary><ol></ol></details><p class="hint note" hidden></p>';
+    log.appendChild(a);
+    a.scrollIntoView({ block: 'end' });
+    var body = a.querySelector('.body'), think = a.querySelector('.thinking'), stat = a.querySelector('.tstat');
+    var calls = a.querySelector('.calls'), note = a.querySelector('.note'), nCalls = 0;
+    var tools = FinAgent.tools(askCtx(), function (msg) { stat.textContent = msg + '…'; think.hidden = false; }).map(function (t) {
+      return { name: t.name, description: t.description, inputSchema: t.inputSchema, execute: function (input, c) {
+        nCalls++;
+        calls.hidden = false;
+        calls.querySelector('summary').textContent = 'Consultas a tus datos (' + nCalls + ')';
+        var li = document.createElement('li'); li.textContent = t.name + ' ' + JSON.stringify(input); calls.querySelector('ol').appendChild(li);
+        return t.execute(input, c);
+      } };
+    });
+    var recent = ASK.turns.slice(-12);
+    while (recent.length && recent[0].role !== 'user') recent.shift();
+    var input = [{ role: 'user', content: FinAgent.instructions(askCtx()) }].concat(recent);
+    ASK.busy = true; ASK.ctl = new AbortController();
+    $('askSend').hidden = true; $('askStop').hidden = false;
+    ASK.fn(input, {
+      modelTier: 'complex', tools: tools, signal: ASK.ctl.signal,
+      onText: function (upd) { think.hidden = true; body.innerHTML = md(upd.text); }
+    }).then(function (res) {
+      body.innerHTML = md(res.text);
+      ASK.turns.push({ role: 'assistant', content: res.text });
+      if (res.truncated) { note.hidden = false; note.textContent = 'La respuesta se cortó por longitud. Pide algo más acotado.'; }
+    }).catch(function (e) {
+      var code = e && e.code;
+      if (e && e.text) { body.innerHTML = md(e.text); ASK.turns.push({ role: 'assistant', content: e.text }); }
+      else if (code === 'refused') body.innerHTML = '';
+      note.hidden = false;
+      note.textContent = code === 'cancelled' ? 'Detenido.' : (ASK_ERR[code] || 'No se pudo completar la respuesta (' + (code || 'error') + '). Inténtalo de nuevo.');
+      if (code === 'not_granted' || code === 'sampling_disabled' || code === 'tools_unavailable') { ASK.ok = false; $('askForm').hidden = true; }
+    }).then(function () {
+      think.hidden = true;
+      ASK.busy = false; ASK.ctl = null;
+      $('askSend').hidden = false; $('askStop').hidden = true;
+      a.scrollIntoView({ block: 'nearest' });
+    });
+  }
+  function initAsk() {
+    $('askFab').onclick = function () { openAsk($('askPanel').hidden); };
+    $('askClose').onclick = function () { openAsk(false); };
+    $('askNew').onclick = function () { if (ASK.busy && ASK.ctl) ASK.ctl.abort(); ASK.turns = []; $('askLog').innerHTML = ''; renderAskEmpty(); };
+    $('askStop').onclick = function () { if (ASK.ctl) ASK.ctl.abort(); };
+    $('askForm').onsubmit = function (e) { e.preventDefault(); askSend(); };
+    $('askInput').onkeydown = function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askSend(); } };
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('askPanel').hidden) openAsk(false); });
+    if (!(window.claude && typeof window.claude.use === 'function')) return;
+    window.claude.use('sample').then(function (fn) {
+      if (!fn) return;
+      ASK.fn = fn;
+      return fn.limits().then(function (l) { ASK.ok = !!(l && l.tools && l.tools.maxCount >= 6); updateAskFab(); });
+    }).catch(function () {});
+  }
+
   // ---------- Tema y tamaño ----------
   var rT;
   window.addEventListener('resize', function () { clearTimeout(rT); rT = setTimeout(function () { Object.keys(charts).forEach(function (k) { charts[k].resize(); }); }, 120); });
 
   // ---------- Arranque ----------
   $('refreshBtn').onclick = function () { load(); };
+  initAsk();
   $('viewSwitch').onclick = function (e) { var b = e.target.closest('button'); if (b) setView(b.getAttribute('data-v')); };
   (function () {
     var h = (location.hash || '').replace('#', '');

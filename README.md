@@ -35,9 +35,18 @@ Cada vez que se abre, el dashboard descarga el Sheet con el conector **Google Dr
 2. Ejecuta `npm run build`.
 3. Pide a Claude Code que publique `dist/artifact.html` como artifact con esta capacidad:
    ```json
-   { "mcp": { "servers": [{ "server": "Google Drive", "tools": ["download_file_content"] }] } }
+   { "mcp": { "servers": [{ "server": "Google Drive", "tools": ["download_file_content"] }] }, "sample": {} }
    ```
 4. Ten el conector Google Drive activo en claude.ai → Ajustes → Conectores. La primera vez, la página te pedirá permiso para usarlo.
+
+### Preguntar a tus datos (solo con Claude)
+
+En el modo Claude aparece el botón **Preguntar a tus datos**. Abre un panel donde puedes hacer preguntas en lenguaje natural, desde las sencillas («¿cuánto gasté en restaurantes en 2025?») hasta otras más elaboradas («con mi ritmo de ahorro histórico, ¿cómo ha afectado al patrimonio no tener ingresos desde agosto, sin contar la cuenta X?»).
+
+- Usa la capacidad `sample` del artifact. Publícalo con `{"sample": {}}` además de `mcp`.
+- Claude recibe un resumen mensual por cuenta y un juego de herramientas que calculan en la página (`src/agent.js`): flujos filtrados y agrupados, movimientos, saldos con exclusión de cuentas, traspasos, inversiones y una calculadora exacta. Las cifras salen de la misma lógica que los gráficos.
+- Consume tu propio uso de Claude, con el modelo más capaz. Una pregunta compleja tarda entre 30 segundos y 2 minutos.
+- En el modo local el botón no aparece.
 
 ## Formato del Google Sheet
 
@@ -109,4 +118,5 @@ npm run build     # dist/dashboard.html (local) y dist/artifact.html (Claude)
 ```
 
 - `src/model.js`: lectura de las hojas y cálculos.
+- `src/agent.js`: resumen y herramientas del asistente «Preguntar a tus datos».
 - `src/app.html`: interfaz, gráficos ([ECharts](https://echarts.apache.org)) y lectura de Excel ([SheetJS](https://sheetjs.com)), ambos desde cdnjs.
