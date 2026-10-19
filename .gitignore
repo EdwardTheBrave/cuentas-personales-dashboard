@@ -1,0 +1,18 @@
+# Configuración y datos personales: nunca al repo
+config.local.js
+.secret-terms
+data/
+*.xlsx
+*.xls
+*.ods
+*.csv
+!sample/ejemplo-cuentas.xlsx
+
+# Builds (llevan la configuración incrustada)
+dist/
+
+# Entorno
+node_modules/
+.env*
+.claude/
+.DS_Store

@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Bloquea el commit si lo que se va a subir contiene datos personales o secretos.
+exec bash "$(git rev-parse --show-toplevel)/scripts/check-secrets.sh"

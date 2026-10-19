@@ -1,0 +1,1430 @@
+<title>__TITLE__</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: cabecera + navegación por secciones -> filtros globales -> Resumen (KPIs, patrimonio, saldos por grupo)
+   -> Zoom de mes -> Evolutivos. Tema claro único, elegido a propósito: el usuario prefiere fondos claros. */
+:root {
+  color-scheme: light;
+  /* Paleta "grafito y petróleo": fondo grafito suave, tarjetas blancas, acento petróleo. */
+  --bg: #2c3135;
+  --on-bg: #f3f5f4;
+  --on-bg-muted: #c4cbcd;
+  --surface: #ffffff;
+  --surface-2: #f5f7f6;
+  --ink: #161b1d;
+  --ink-2: #485256;
+  --muted: #6c777a;
+  --line: #e2e6e5;
+  --line-2: #cbd3d2;
+  --accent: #0a7d8c;
+  --accent-soft: #def0f2;
+  --band: #0c5560;
+  --band-ink: #ffffff;
+  --inc: #0f7a52; --inc-strong: #1f9466; --inc-soft: #e2f3ea;
+  --exp: #b3263e; --exp-strong: #d0344f; --exp-soft: #fbe8eb;
+  --net: #1d3f66;
+  /* Categórica validada (CVD adyacente ≥ 9,9; visión normal ≥ 24; contraste ≥ 3:1). */
+  --s1: #0a8fa0; --s2: #c97a00; --s3: #6b4fc8; --s4: #e2683c;
+  --s5: #2a5fb8; --s6: #4a9d2f; --s7: #d2508a; --s8: #9a8a00;
+  --other: #a7adab;
+  --heat: 10, 143, 160;
+  --warn-bg: #fff4e0; --warn-ink: #7a4b00;
+  --err-bg: #fdecec; --err-ink: #8f1d1d;
+  --font-body: "Hanken Grotesk", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-num: "Spline Sans Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r: 10px;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.45; }
+.wrap { max-width: 1320px; margin: 0 auto; padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 16px; }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 15px; font-weight: 650; }
+.eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Cabecera */
+.top { color: var(--on-bg); }
+.top .eyebrow, #footnote { color: var(--on-bg-muted); }
+.status { color: var(--on-bg) !important; }
+#main > .empty, .loader { color: var(--on-bg) !important; }
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.top .title { display: flex; flex-direction: column; gap: 2px; }
+.status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--ink-2); font-size: 13px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
+.dot.ok { background: var(--inc-strong); } .dot.busy { background: var(--s2); } .dot.bad { background: var(--exp-strong); }
+.btn { border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 6px 12px; font-weight: 600; font-size: 13px; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--accent); padding-inline: 6px; }
+.btn:disabled { opacity: .6; cursor: default; }
+.top .btn { background: var(--surface); color: var(--ink); border-color: var(--surface); }
+.top .btn:hover:not(:disabled) { background: var(--accent-soft); }
+
+.banner { border-radius: var(--r); padding: 12px 14px; font-size: 13.5px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.banner.warn { background: var(--warn-bg); color: var(--warn-ink); }
+.banner.err { background: var(--err-bg); color: var(--err-ink); }
+.banner p { margin: 0; flex: 1 1 320px; }
+
+/* Filtros */
+.filters { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; display: flex; flex-direction: column; gap: 10px;
+  position: relative; z-index: 20; }
+@media (min-width: 1180px) { .filters { position: sticky; top: env(safe-area-inset-top, 0px); } }
+.frow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.field { display: flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 0 8px; height: 34px; min-width: 0; }
+.field label { font-size: 12px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+.field select, .field input { border: 0; background: transparent; height: 32px; outline: none; min-width: 0; }
+.field input[type="number"] { width: 84px; }
+.field input[type="search"] { width: 180px; }
+.field:focus-within { border-color: var(--accent); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface-2); height: 34px; }
+.seg button { border: 0; background: transparent; padding: 0 10px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
+details.ms { position: relative; }
+details.ms > summary { list-style: none; cursor: pointer; }
+details.ms > summary::-webkit-details-marker { display: none; }
+details.ms > summary .val { font-weight: 600; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+details.ms > summary::after { content: ""; width: 7px; height: 7px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(45deg) translateY(-2px); margin-left: 4px; }
+.pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r);
+  box-shadow: 0 10px 30px rgba(0,0,0,.14); width: min(300px, calc(100vw - 32px)); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.pop .acts { display: flex; gap: 4px; justify-content: space-between; }
+.pop .list { max-height: 260px; overflow: auto; display: flex; flex-direction: column; }
+.pop label.opt { display: flex; gap: 8px; align-items: center; padding: 5px 6px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.pop label.opt:hover { background: var(--surface-2); }
+.pop label.opt .c { margin-left: auto; color: var(--muted); font-size: 11.5px; }
+.pop input[type="search"] { border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; background: var(--surface-2); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); color: var(--ink); border-radius: 999px; padding: 3px 4px 3px 10px; font-size: 12.5px; }
+.chip button { border: 0; background: transparent; color: var(--ink-2); width: 20px; height: 20px; border-radius: 50%; line-height: 1; }
+.chip button:hover { background: var(--line-2); }
+.ftoggle { display: none; }
+
+/* Tarjetas */
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(12, minmax(0, 1fr)); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.span-12 { grid-column: span 12; } .span-7 { grid-column: span 7; } .span-5 { grid-column: span 5; } .span-6 { grid-column: span 6; }
+.chead { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
+.chead .sub { color: var(--muted); font-size: 12.5px; }
+.chart { width: 100%; height: 320px; }
+.chart.tall { height: 360px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--ink-2); }
+.legend span { display: inline-flex; gap: 6px; align-items: center; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+.kpis { display: grid; gap: 16px; grid-template-columns: 1.4fr repeat(4, minmax(0, 1fr)); }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.kpi .v { font-size: 22px; font-weight: 500; }
+.kpi.hero .v { font-size: 30px; }
+.kpi .d { font-size: 12.5px; color: var(--ink-2); display: flex; gap: 10px; flex-wrap: wrap; }
+.delta.good { color: var(--inc); } .delta.bad { color: var(--exp); }
+.delta::before { content: ""; display: inline-block; width: 0; height: 0; margin-right: 4px; vertical-align: 2px;
+  border-left: 4px solid transparent; border-right: 4px solid transparent; }
+.delta.rise::before { border-bottom: 6px solid currentColor; }
+.delta.fall::before { border-top: 6px solid currentColor; }
+
+/* Tablas */
+.tablebox { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
+th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; background: var(--surface-2); position: sticky; top: 0; z-index: 1; }
+td.r, th.r { text-align: right; }
+tr:last-child td { border-bottom: 0; }
+.matrix th:first-child, .matrix td:first-child { position: sticky; left: 0; background: var(--surface); z-index: 2; }
+.matrix th:first-child { background: var(--surface-2); z-index: 3; }
+.matrix tr.grp td { background: var(--surface-2); font-weight: 650; }
+.matrix tr.grp td:first-child { background: var(--surface-2); }
+.matrix tr.tot td { font-weight: 650; border-top: 1px solid var(--line-2); }
+.matrix td.z { color: var(--muted); }
+.matrix td.tc { border-left: 1px solid var(--line-2); font-weight: 600; }
+.sortable th { cursor: pointer; user-select: none; }
+.sortable th[aria-sort="ascending"]::after { content: " ↑"; }
+.sortable th[aria-sort="descending"]::after { content: " ↓"; }
+.scrollbox { max-height: 420px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.tag { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11.5px; font-weight: 600; background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-2); }
+.tag.inc { border-color: var(--s1); color: var(--ink); }
+.amt-inc { color: var(--ink); } .amt-exp { color: var(--ink); }
+.muted { color: var(--muted); }
+
+/* Zoom */
+.zoomhead { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.zoomnav { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.zoomnav .btn.ghost { white-space: nowrap; }
+.mk { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.mk div { background: var(--surface); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mk .v { font-size: 18px; }
+.tree details { border-bottom: 1px solid var(--line); }
+.tree details:last-child { border-bottom: 0; }
+.tree summary { list-style: none; display: grid; grid-template-columns: 1fr 110px 110px; gap: 8px; padding: 8px 10px; cursor: pointer; font-weight: 650; align-items: center; }
+.tree summary::-webkit-details-marker { display: none; }
+.tree summary .n::before { content: "▸"; display: inline-block; width: 14px; color: var(--muted); transition: transform .15s; }
+.tree details[open] summary .n::before { transform: rotate(90deg); }
+.tree .row { display: grid; grid-template-columns: 1fr 110px 110px; gap: 8px; padding: 5px 10px 5px 30px; font-size: 13px; border-top: 1px dashed var(--line); }
+.tree .row .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree .hdr { display: grid; grid-template-columns: 1fr 110px 110px; gap: 8px; padding: 6px 10px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.r { text-align: right; }
+.empty { padding: 24px; text-align: center; color: var(--muted); }
+.hint { font-size: 12.5px; color: var(--muted); }
+.loader { padding: 60px 16px; text-align: center; color: var(--ink-2); display: flex; flex-direction: column; gap: 14px; align-items: center; }
+.loader .bar { width: 180px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; position: relative; }
+.loader .bar::after { content: ""; position: absolute; inset: 0; width: 40%; background: var(--accent); border-radius: 2px; animation: slide 1.1s ease-in-out infinite; }
+@keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@media (prefers-reduced-motion: reduce) { .loader .bar::after { animation: none; } }
+
+/* Secciones con cabecera propia */
+.section { display: flex; flex-direction: column; gap: 16px; scroll-margin-top: 150px; }
+.shead { background: var(--band); color: var(--band-ink); border-radius: var(--r); padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
+.shead .eyebrow { color: rgba(255,255,255,.72); }
+.shead h2 { font-size: 19px; font-weight: 700; }
+.shead .field { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.28); }
+.shead .field label { color: rgba(255,255,255,.75); }
+.shead .field select { color: var(--band-ink); }
+.shead .field select option { color: var(--ink); background: var(--surface); }
+.shead .btn { background: transparent; color: var(--band-ink); border-color: rgba(255,255,255,.35); }
+.shead .btn:hover { border-color: var(--band-ink); }
+.shead .btn, .zoomnav .btn { white-space: nowrap; }
+.zoomnav .btn[aria-label] { width: 34px; height: 34px; padding: 0; }
+.secnav { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.secnav a { color: var(--accent); font-weight: 600; font-size: 13px; text-decoration: none; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); }
+.secnav a:hover { background: var(--accent); color: var(--surface); }
+
+/* Ingresos y gastos */
+.inc { color: var(--inc); } .exp { color: var(--exp); }
+.tag.inc { background: var(--inc-soft); border-color: transparent; color: var(--inc); }
+.tag.exp { background: var(--exp-soft); border-color: transparent; color: var(--exp); }
+.mk div.kinc { background: var(--inc-soft); } .mk div.kexp { background: var(--exp-soft); }
+.ztotal { border-top: 1px solid var(--line-2); padding-top: 6px; }
+.mk div.kinc .v { color: var(--inc); } .mk div.kexp .v { color: var(--exp); }
+
+/* Saldos agrupados */
+.acct tr.g td { font-weight: 700; background: var(--surface-2); cursor: pointer; }
+.acct tr.g td:first-child::before { content: "−"; display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; margin-right: 8px; border: 1px solid var(--line-2); border-radius: 3px; font-size: 11px; color: var(--ink-2); background: var(--surface); }
+.acct tr.g.closed td:first-child::before { content: "+"; }
+.acct tr.c td:first-child { padding-left: 34px; color: var(--ink-2); }
+.acct tfoot td { font-weight: 700; border-top: 1px solid var(--line-2); }
+
+/* Leyenda pulsable */
+.legend button.lg { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 10px; display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--ink-2); font-weight: 600; }
+.legend button.lg[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); background: var(--surface-2); }
+.legend button.lg.dim { opacity: .5; }
+
+/* Cambio de panel e inversiones */
+.viewswitch { height: 38px; background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.22); }
+.viewswitch button { color: var(--on-bg); padding: 0 16px; font-size: 13.5px; }
+.viewswitch button[aria-pressed="true"] { background: var(--surface); color: var(--ink); }
+.shead .seg { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.25); flex-wrap: wrap; height: auto; min-height: 34px; }
+.shead .seg button { color: rgba(255,255,255,.85); min-height: 32px; }
+.shead .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); }
+.kpis.inv { grid-template-columns: 1.4fr repeat(4, minmax(0, 1fr)); }
+.mix { display: flex; flex-direction: column; gap: 14px; }
+.mixrow { display: flex; flex-direction: column; gap: 5px; }
+.mixtop { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-weight: 600; }
+.mixtop i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 8px; }
+.mixbar { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.mixbar span { display: block; height: 100%; border-radius: 4px; }
+.mixpl { font-size: 12.5px; color: var(--muted); }
+.invpos tr.c { cursor: pointer; }
+.invpos tr.c:hover td { background: var(--accent-soft); }
+.invpos tr.g td:first-child::before { content: none; }
+.st { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; }
+.st.live { background: var(--accent-soft); color: var(--accent); }
+.st.yield { background: var(--inc-soft); color: var(--inc); }
+.st.closed { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+.tag.dep { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
+.tag.wd { background: #fdf1e0; border-color: transparent; color: #8a5300; }
+.dropzone { background: var(--surface); border: 2px dashed var(--line-2); border-radius: var(--r); padding: 40px 24px; display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center; max-width: 640px; margin: 24px auto; }
+.dropzone p { margin: 0; color: var(--ink-2); max-width: 52ch; }
+body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent); outline-offset: -6px; }
+@media (max-width: 1080px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi.hero { grid-column: span 2; }
+  .kpis.inv { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .span-7, .span-5, .span-6 { grid-column: span 12; }
+}
+@media (max-width: 640px) {
+  .ftoggle { display: inline-flex; }
+  .filters:not(.open) .fbody { display: none; }
+  .field input[type="search"] { width: 130px; }
+  .mk { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .chart { height: 260px; } .chart.tall { height: 300px; }
+  .tree summary, .tree .row, .tree .hdr { grid-template-columns: 1fr 86px 86px; }
+  .kpi.hero .v { font-size: 26px; }
+}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="title">
+      <span class="eyebrow" id="pageEyebrow">Finanzas personales</span>
+      <h1 id="pageTitle">__TITLE__</h1>
+    </div>
+    <div class="seg viewswitch" role="group" aria-label="Panel" id="viewSwitch"><button type="button" data-v="fin" aria-pressed="true">Finanzas</button><button type="button" data-v="inv" aria-pressed="false">Inversiones</button></div>
+    <div class="status" id="status">
+      <span class="dot busy" id="statusDot"></span><span id="statusText">Conectando con Google Drive…</span>
+      <button class="btn" id="refreshBtn" type="button" disabled>Actualizar</button>
+    </div>
+  </header>
+
+  <div id="banner"></div>
+
+  <section class="filters" id="filters" aria-label="Filtros" hidden>
+    <div class="frow">
+      <nav class="secnav" aria-label="Secciones"><a href="#resumen">Resumen</a><a href="#mes">Mes al detalle</a><a href="#evolutivos">Evolutivos</a></nav>
+      <button class="btn ftoggle" id="ftoggle" type="button" aria-expanded="false">Filtros</button>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="fbody frow" id="fbody"></div>
+  </section>
+
+  <main id="main">
+    <div class="loader" id="loader"><div class="bar"></div><div>Leyendo las hojas Expenses e Internal Transfers…</div></div>
+  </main>
+
+  <main id="invMain" hidden>
+    <div class="loader"><div class="bar"></div><div>Leyendo la hoja Inversiones…</div></div>
+  </main>
+
+  <p class="hint" id="footnote" hidden></p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<script>
+/*__CONFIG__*/
+</script>
+<script>
+/*__MODEL__*/
+</script>
+<script>
+(function () {
+  'use strict';
+  var CFG = window.CP_CONFIG || {};
+  var FILE_ID = String(CFG.sheetId || '').trim();
+  var TITLE = CFG.title || 'Cuentas Personales';
+  var SERVER = 'Google Drive';
+  var TOOL = 'download_file_content';
+  var XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  var M = FinModel;
+  var TOPN = 7;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var fmtEur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  var fmtEur0 = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+  var fmtPct = new Intl.NumberFormat('es-ES', { style: 'percent', maximumFractionDigits: 1 });
+  function eur(n) { if (Math.abs(n) < 0.005) n = 0; return fmtEur.format(n); }
+  function eur0(n) { if (Math.abs(n) < 0.5) n = 0; return fmtEur0.format(n); }
+  function eurAxis(n) {
+    var a = Math.abs(n);
+    if (a >= 1000) return (n / 1000).toLocaleString('es-ES', { maximumFractionDigits: a >= 10000 ? 0 : 1 }) + ' k€';
+    return n.toLocaleString('es-ES', { maximumFractionDigits: 0 }) + ' €';
+  }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function sum(arr, f) { var s = 0; for (var i = 0; i < arr.length; i++) s += f ? f(arr[i]) : arr[i]; return s; }
+  function todayYm() { var d = new Date(); return d.getFullYear() * 100 + d.getMonth() + 1; }
+  function prevYm(k) { var y = Math.floor(k / 100), m = k % 100; return m === 1 ? (y - 1) * 100 + 12 : k - 1; }
+  function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem('cp.' + k)); localStorage.setItem('cp.' + k, JSON.stringify(v)); } catch (e) { return null; } }
+
+  // ---------- Estado ----------
+  var DATA = null, MONTHS = [], DIMS = {}, COLOR_RANK = {}, LAST = {};
+  var S = {
+    from: null, to: null, accounts: null, categories: null, subs: null, kind: 'all', q: '', min: null, max: null,
+    zoom: null, nwMode: 'total', closed: new Set(), ieFocus: null, nwFocus: null, nwGroup: 'all', zSub: null, dim: 'sub', flowKind: 'Expense', matrixDim: 'sub', matrixKind: 'Expense', sort: { key: 'value', dir: 1 }
+  };
+  var saved = store('view');
+  if (saved && saved.nwMode === 'accounts') saved.nwMode = 'groups';
+  if (saved) ['nwMode', 'dim', 'flowKind', 'matrixDim', 'matrixKind'].forEach(function (k) { if (saved[k]) S[k] = saved[k]; });
+  function saveView() { store('view', { nwMode: S.nwMode, dim: S.dim, flowKind: S.flowKind, matrixDim: S.matrixDim, matrixKind: S.matrixKind }); }
+
+  // ---------- Carga ----------
+  function setStatus(kind, text) {
+    $('statusDot').className = 'dot ' + kind;
+    $('statusText').textContent = text;
+  }
+  function banner(kind, html, actions) {
+    var b = $('banner');
+    if (!html) { b.innerHTML = ''; return; }
+    b.innerHTML = '<div class="banner ' + kind + '"><p>' + html + '</p><span id="bannerActs"></span></div>';
+    (actions || []).forEach(function (a) {
+      var btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'btn'; btn.textContent = a.label; btn.onclick = a.onClick;
+      $('bannerActs').appendChild(btn);
+    });
+  }
+  function loadFile(f) {
+    if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () {
+      try { ingest(XLSX.read(new Uint8Array(rd.result), { type: 'array' }), 'Fichero local · ' + f.name); }
+      catch (e) { setStatus('bad', 'No se pudo leer el fichero'); banner('err', 'No se pudo leer «' + esc(f.name) + '» como hoja de cálculo. Exporta el Sheet como .xlsx (Archivo → Descargar → Microsoft Excel).'); }
+    };
+    rd.readAsArrayBuffer(f);
+  }
+  function pickFile() {
+    var inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.xlsx,.xls,.ods';
+    inp.onchange = function () { loadFile(inp.files && inp.files[0]); };
+    inp.click();
+  }
+  function manualLoadAction() { return { label: 'Cargar .xlsx manualmente', onClick: pickFile }; }
+  // Arrastrar un .xlsx a cualquier parte de la página lo carga (los datos no salen del navegador).
+  document.addEventListener('dragover', function (e) { e.preventDefault(); document.body.classList.add('dragging'); });
+  document.addEventListener('dragleave', function (e) { if (!e.relatedTarget) document.body.classList.remove('dragging'); });
+  document.addEventListener('drop', function (e) {
+    e.preventDefault(); document.body.classList.remove('dragging');
+    loadFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]);
+  });
+  function showDropzone(reason) {
+    setStatus('bad', reason);
+    var html = '<div class="dropzone"><h2>Carga tu hoja de cálculo</h2>' +
+      '<p>Arrastra aquí el .xlsx exportado de tu Google Sheet, o elígelo desde tu ordenador. Se procesa solo en este navegador: no se sube a ningún sitio.</p>' +
+      '<button class="btn primary" type="button" data-pick>Elegir fichero .xlsx</button>' +
+      '<p class="hint">Necesita las hojas Expenses e Internal Transfers (y opcionalmente Inversiones) con las cabeceras del README.</p></div>';
+    $('main').innerHTML = html;
+    $('invMain').innerHTML = html;
+    document.querySelectorAll('[data-pick]').forEach(function (b) { b.onclick = pickFile; });
+  }
+
+  var mcpNs = null, loading = false;
+  function extractBase64(res) {
+    var p = res && res.payload;
+    if (typeof p === 'string') { try { p = JSON.parse(p); } catch (e) { return p; } }
+    if (p && typeof p.content === 'string') return p.content;
+    if (p && p.content && typeof p.content.data === 'string') return p.content.data;
+    var blocks = (res && res.content) || [];
+    for (var i = 0; i < blocks.length; i++) {
+      if (blocks[i].type === 'text') {
+        try { var j = JSON.parse(blocks[i].text); if (j && typeof j.content === 'string') return j.content; } catch (e) {}
+      }
+      if (blocks[i].type === 'resource' && blocks[i].resource && blocks[i].resource.blob) return blocks[i].resource.blob;
+    }
+    return null;
+  }
+
+  function load(isRetry) {
+    if (!mcpNs || loading) return;
+    loading = true; $('refreshBtn').disabled = true;
+    setStatus('busy', 'Leyendo el Sheet en Google Drive…');
+    mcpNs.callTool(SERVER, TOOL, { fileId: FILE_ID, exportMimeType: XLSX_MIME }, { cache: false }).then(function (res) {
+      loading = false;
+      var b64 = extractBase64(res);
+      if (!b64) throw { code: 'shape', message: 'El conector respondió sin el contenido del fichero.' };
+      var wb = XLSX.read(b64.replace(/\s+/g, ''), { type: 'base64' });
+      var when = res.cache && res.cache.storedAt ? new Date(res.cache.storedAt) : new Date();
+      ingest(wb, 'Google Drive · ' + when.toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }));
+      banner();
+    }).catch(function (err) {
+      loading = false; $('refreshBtn').disabled = false;
+      var code = err && err.code;
+      if (err && err.retryable && !isRetry) {
+        setStatus('busy', 'Google Drive no respondió; reintentando…');
+        setTimeout(function () { load(true); }, Math.max(err.retryAfterMs || 0, 1500 + Math.random() * 1500));
+        return;
+      }
+      setStatus('bad', 'Sin conexión con el Sheet');
+      var keep = DATA ? ' Se mantienen los últimos datos cargados.' : '';
+      if (code === 'needs_reauth') banner('err', 'La sesión de Google Drive ha caducado. Vuelve a conectarlo en claude.ai → Ajustes → Conectores.' + keep, [{ label: 'Reintentar', onClick: function () { load(); } }]);
+      else if (code === 'server_not_connected' || code === 'server_not_found') banner('err', 'Este dashboard lee tu Sheet con el conector Google Drive. Añádelo en claude.ai → Ajustes → Conectores y recarga.' + keep, [manualLoadAction()]);
+      else if (code === 'selection_required') banner('warn', 'Tienes más de un conector Google Drive. Elige cuál usar en el aviso de claude.ai y pulsa Reintentar.', [{ label: 'Reintentar', onClick: function () { load(); } }]);
+      else if (code === 'approval_required' || code === 'not_in_manifest' || code === 'consent_required') banner('warn', 'Para leer el Sheet, permite a esta página usar Google Drive.' + keep, [{ label: 'Permitir y cargar', onClick: function () { load(); } }]);
+      else if (code === 'blocked_by_policy') banner('err', 'La política de tu organización bloquea el acceso a Google Drive desde esta página.', [manualLoadAction()]);
+      else if (code === 'tool_error') banner('err', 'Google Drive no pudo exportar el Sheet: ' + esc(err.message || '') + '. Comprueba que tu cuenta tiene acceso al fichero.' + keep, [{ label: 'Reintentar', onClick: function () { load(); } }, manualLoadAction()]);
+      else if (code === 'not_granted' || code === 'capability_disabled' || code === 'capability_removed') banner('warn', 'Esta vista no puede usar conectores. Ábrela en claude.ai o carga el fichero a mano.', [manualLoadAction()]);
+      else banner('err', 'No se pudo leer el Sheet (' + esc(code || 'error') + '): ' + esc((err && err.message) || '') + keep, [{ label: 'Reintentar', onClick: function () { load(); } }, manualLoadAction()]);
+      if (!DATA) $('main').innerHTML = '<div class="empty">Sin datos todavía. Cuando el Sheet se lea, aquí aparecerán patrimonio, ingresos, gastos y el detalle mensual.</div>';
+    });
+  }
+
+  function ingest(wb, sourceLabel) {
+    try {
+      DATA = M.parseWorkbook(XLSX, wb);
+    } catch (e) {
+      setStatus('bad', 'Formato no reconocido');
+      banner('err', esc(e.message));
+      $('refreshBtn').disabled = !mcpNs;
+      return;
+    }
+    banner();
+    MONTHS = M.monthRange(DATA, todayYm());
+    buildDims();
+    var lastData = MONTHS[MONTHS.length - 1];
+    if (S.from == null || MONTHS.indexOf(S.from) === -1) S.from = MONTHS[0];
+    if (S.to == null || MONTHS.indexOf(S.to) === -1 || S.to === S.lastAuto) { S.to = lastData; S.lastAuto = lastData; }
+    if (S.zoom == null || MONTHS.indexOf(S.zoom) === -1) S.zoom = MONTHS.indexOf(todayYm()) !== -1 ? todayYm() : lastData;
+    var n = DATA.tx.filter(function (t) { return !t.opening; }).length;
+    setStatus('ok', sourceLabel + ' · ' + n.toLocaleString('es-ES') + ' movimientos · ' + DATA.tr.length.toLocaleString('es-ES') + ' traspasos');
+    $('refreshBtn').disabled = !mcpNs;
+    if (DATA.problems.length) banner('warn', esc(DATA.problems.join(' ')));
+    buildLayout();
+    buildFilters();
+    renderAll();
+    ingestInv(wb);
+    setView(VIEW);
+  }
+
+  // ---------- Dimensiones y colores estables ----------
+  function buildDims() {
+    var acc = {}, cat = {}, sub = {}, subCat = {};
+    DATA.tx.forEach(function (t) {
+      acc[t.account] = (acc[t.account] || 0) + 1;
+      if (t.opening) return;
+      cat[t.category] = (cat[t.category] || 0) + 1;
+      sub[t.sub] = (sub[t.sub] || 0) + 1;
+      subCat[t.sub] = subCat[t.sub] || t.category;
+    });
+    DATA.tr.forEach(function (t) { acc[t.from] = acc[t.from] || 0; acc[t.to] = acc[t.to] || 0; });
+    DIMS = { account: Object.keys(acc).sort(coll), category: Object.keys(cat).sort(coll), sub: Object.keys(sub).sort(coll), subCat: subCat, counts: { account: acc, category: cat, sub: sub } };
+    // Color por entidad: ranking global (sin filtros) para que un filtro nunca repinte las series.
+    var full = M.balances(DATA, MONTHS);
+    var last = MONTHS.length - 1;
+    COLOR_RANK.account = Object.keys(full.byAccount).sort(function (a, b) { return Math.abs(full.byAccount[b][last]) - Math.abs(full.byAccount[a][last]); });
+    ['sub', 'category'].forEach(function (d) {
+      var tot = {};
+      DATA.tx.forEach(function (t) { if (!t.opening) tot[t[d]] = (tot[t[d]] || 0) + t.value; });
+      COLOR_RANK[d] = Object.keys(tot).sort(function (a, b) { return tot[b] - tot[a]; });
+    });
+  }
+  function coll(a, b) { return a.localeCompare(b, 'es'); }
+  var SERIES_VARS = ['--s1', '--s2', '--s3', '--s4', '--s5', '--s6', '--s7', '--s8'];
+  function colorFor(dim, name) {
+    if (name === 'Otras' || name === 'Otros') return css('--other');
+    var i = (COLOR_RANK[dim] || []).indexOf(name);
+    return i >= 0 && i < SERIES_VARS.length ? css(SERIES_VARS[i]) : css('--other');
+  }
+  function fieldOf(dim) { return dim === 'account' ? 'account' : dim === 'category' ? 'category' : 'sub'; }
+  var DIM_LABEL = { sub: 'Subcategoría', category: 'Categoría', account: 'Cuenta' };
+
+  // ---------- Filtros ----------
+  function passFlow(t, ignoreDates) {
+    if (t.opening) return false;
+    if (!ignoreDates && (t.ym < S.from || t.ym > S.to)) return false;
+    if (S.accounts && !S.accounts.has(t.account)) return false;
+    if (S.categories && !S.categories.has(t.category)) return false;
+    if (S.subs && !S.subs.has(t.sub)) return false;
+    if (S.kind !== 'all' && t.kind !== S.kind) return false;
+    if (S.min != null && Math.abs(t.value) < S.min) return false;
+    if (S.max != null && Math.abs(t.value) > S.max) return false;
+    if (S.q) { var q = S.q; if (t.concept.toLowerCase().indexOf(q) === -1) return false; }
+    return true;
+  }
+  function rangeMonths() { return MONTHS.filter(function (k) { return k >= S.from && k <= S.to; }); }
+
+  function monthOptions(sel) {
+    return MONTHS.map(function (k) { return '<option value="' + k + '"' + (k === sel ? ' selected' : '') + '>' + M.ymLabel(k) + '</option>'; }).join('');
+  }
+  function msHtml(id, label, dim) {
+    return '<details class="ms" id="ms-' + id + '"><summary class="field"><label>' + label + '</label><span class="val" id="msv-' + id + '">Todas</span></summary>' +
+      '<div class="pop"><input type="search" placeholder="Buscar…" id="mss-' + id + '" aria-label="Buscar ' + label + '">' +
+      '<div class="acts"><button type="button" class="btn ghost" data-all="' + id + '">Todas</button><button type="button" class="btn ghost" data-none="' + id + '">Ninguna</button></div>' +
+      '<div class="list" id="msl-' + id + '">' + DIMS[dim].map(function (v) {
+        return '<label class="opt"><input type="checkbox" value="' + esc(v) + '" checked> <span>' + esc(v) + '</span><span class="c">' + (DIMS.counts[dim][v] || 0) + '</span></label>';
+      }).join('') + '</div></div></details>';
+  }
+  var MS = { acc: { dim: 'account', key: 'accounts', label: 'Cuentas' }, cat: { dim: 'category', key: 'categories', label: 'Categoría' }, sub: { dim: 'sub', key: 'subs', label: 'Subcategoría' } };
+
+  function buildFilters() {
+    var f = $('fbody');
+    f.innerHTML =
+      '<div class="field"><label for="fFrom">Desde</label><select id="fFrom">' + monthOptions(S.from) + '</select></div>' +
+      '<div class="field"><label for="fTo">Hasta</label><select id="fTo">' + monthOptions(S.to) + '</select></div>' +
+      '<div class="seg" role="group" aria-label="Periodo rápido"><button type="button" data-q="12">12 m</button><button type="button" data-q="ytd">Año</button><button type="button" data-q="all">Todo</button></div>' +
+      msHtml('acc', 'Cuentas', 'account') + msHtml('cat', 'Categoría', 'category') + msHtml('sub', 'Subcategoría', 'sub') +
+      '<div class="seg" role="group" aria-label="Tipo"><button type="button" data-k="all">Todo</button><button type="button" data-k="Income">Ingresos</button><button type="button" data-k="Expense">Gastos</button></div>' +
+      '<div class="field"><label for="fQ">Concepto</label><input type="search" id="fQ" placeholder="p. ej. Mercadona" value="' + esc(S.q) + '"></div>' +
+      '<div class="field"><label for="fMin">Importe</label><input type="number" id="fMin" placeholder="mín" min="0" step="any" inputmode="decimal"><span class="muted">–</span><input type="number" id="fMax" placeholder="máx" min="0" step="any" inputmode="decimal" aria-label="Importe máximo"></div>' +
+      '<button type="button" class="btn ghost" id="fClear">Limpiar filtros</button>';
+
+    $('fFrom').onchange = function () { S.from = +this.value; if (S.from > S.to) S.to = S.from; syncFilterUI(); renderAll(); };
+    $('fTo').onchange = function () { S.to = +this.value; S.lastAuto = null; if (S.to < S.from) S.from = S.to; syncFilterUI(); renderAll(); };
+    f.querySelectorAll('[data-q]').forEach(function (b) {
+      b.onclick = function () {
+        var last = MONTHS[MONTHS.length - 1], q = b.getAttribute('data-q');
+        S.to = last; S.lastAuto = last;
+        if (q === 'all') S.from = MONTHS[0];
+        else if (q === 'ytd') S.from = Math.max(MONTHS[0], Math.floor(last / 100) * 100 + 1);
+        else { var k = last; for (var i = 0; i < 11; i++) k = prevYm(k); S.from = Math.max(MONTHS[0], k); }
+        syncFilterUI(); renderAll();
+      };
+    });
+    f.querySelectorAll('[data-k]').forEach(function (b) { b.onclick = function () { S.kind = b.getAttribute('data-k'); syncFilterUI(); renderAll(); }; });
+    var qT; $('fQ').oninput = function () { var v = this.value.trim().toLowerCase(); clearTimeout(qT); qT = setTimeout(function () { S.q = v; syncFilterUI(); renderAll(); }, 200); };
+    function numInput(id, key) {
+      var t; $(id).oninput = function () { var v = this.value === '' ? null : Math.abs(parseFloat(this.value)); clearTimeout(t); t = setTimeout(function () { S[key] = isFinite(v) ? v : null; syncFilterUI(); renderAll(); }, 250); };
+    }
+    numInput('fMin', 'min'); numInput('fMax', 'max');
+    $('fClear').onclick = clearFilters;
+
+    Object.keys(MS).forEach(function (id) {
+      var cfg = MS[id], list = $('msl-' + id);
+      list.onchange = function () {
+        var boxes = list.querySelectorAll('input'), on = [];
+        boxes.forEach(function (b) { if (b.checked) on.push(b.value); });
+        S[cfg.key] = on.length === boxes.length ? null : new Set(on);
+        syncFilterUI(); renderAll();
+      };
+      $('mss-' + id).oninput = function () {
+        var q = this.value.trim().toLowerCase();
+        list.querySelectorAll('label.opt').forEach(function (l) { l.hidden = q && l.textContent.toLowerCase().indexOf(q) === -1; });
+      };
+      document.querySelector('[data-all="' + id + '"]').onclick = function () { S[cfg.key] = null; syncFilterUI(); renderAll(); };
+      document.querySelector('[data-none="' + id + '"]').onclick = function () { S[cfg.key] = new Set(); syncFilterUI(); renderAll(); };
+    });
+    document.querySelectorAll('details.ms').forEach(function (d) {
+      d.addEventListener('toggle', function () { if (d.open) document.querySelectorAll('details.ms').forEach(function (o) { if (o !== d) o.open = false; }); });
+    });
+    $('ftoggle').onclick = function () { var open = $('filters').classList.toggle('open'); this.setAttribute('aria-expanded', open); };
+    syncFilterUI();
+  }
+  document.addEventListener('click', function (e) {
+    document.querySelectorAll('details.ms[open]').forEach(function (d) { if (!d.contains(e.target)) d.open = false; });
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') document.querySelectorAll('details.ms[open]').forEach(function (d) { d.open = false; }); });
+
+  function clearFilters() {
+    S.from = MONTHS[0]; S.to = MONTHS[MONTHS.length - 1]; S.lastAuto = S.to;
+    S.accounts = S.categories = S.subs = null; S.kind = 'all'; S.q = ''; S.min = S.max = null;
+    $('fQ').value = ''; $('fMin').value = ''; $('fMax').value = '';
+    syncFilterUI(); renderAll();
+  }
+
+  function syncFilterUI() {
+    $('fFrom').value = S.from; $('fTo').value = S.to;
+    document.querySelectorAll('[data-k]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-k') === S.kind); });
+    Object.keys(MS).forEach(function (id) {
+      var set = S[MS[id].key], boxes = $('msl-' + id).querySelectorAll('input');
+      boxes.forEach(function (b) { b.checked = !set || set.has(b.value); });
+      $('msv-' + id).textContent = !set ? 'Todas' : set.size === 0 ? 'Ninguna' : set.size === 1 ? Array.from(set)[0] : set.size + ' selecc.';
+    });
+    var chips = [];
+    if (S.from !== MONTHS[0] || S.to !== MONTHS[MONTHS.length - 1]) chips.push({ t: M.ymLabel(S.from) + ' – ' + M.ymLabel(S.to), clear: function () { S.from = MONTHS[0]; S.to = MONTHS[MONTHS.length - 1]; S.lastAuto = S.to; } });
+    Object.keys(MS).forEach(function (id) {
+      var set = S[MS[id].key];
+      if (set) chips.push({ t: MS[id].label + ': ' + (set.size <= 2 ? (Array.from(set).join(', ') || 'ninguna') : set.size + ' selecc.'), clear: function () { S[MS[id].key] = null; } });
+    });
+    if (S.kind !== 'all') chips.push({ t: S.kind === 'Income' ? 'Solo ingresos' : 'Solo gastos', clear: function () { S.kind = 'all'; } });
+    if (S.q) chips.push({ t: 'Concepto contiene “' + S.q + '”', clear: function () { S.q = ''; $('fQ').value = ''; } });
+    if (S.min != null || S.max != null) chips.push({ t: 'Importe ' + (S.min != null ? '≥ ' + eur0(S.min) : '') + (S.min != null && S.max != null ? ' y ' : '') + (S.max != null ? '≤ ' + eur0(S.max) : ''), clear: function () { S.min = S.max = null; $('fMin').value = ''; $('fMax').value = ''; } });
+    var c = $('chips'); c.innerHTML = '';
+    if (!chips.length) c.innerHTML = '<span class="hint">Sin filtros: todo el histórico, todas las cuentas.</span>';
+    chips.forEach(function (ch) {
+      var el = document.createElement('span'); el.className = 'chip';
+      el.innerHTML = '<span>' + esc(ch.t) + '</span><button type="button" aria-label="Quitar filtro">×</button>';
+      el.querySelector('button').onclick = function () { ch.clear(); syncFilterUI(); renderAll(); };
+      c.appendChild(el);
+    });
+    $('ftoggle').textContent = chips.length ? 'Filtros (' + chips.length + ')' : 'Filtros';
+  }
+
+  // ---------- Layout ----------
+  function seg(id, opts, cur) {
+    return '<div class="seg" role="group" id="' + id + '">' + opts.map(function (o) { return '<button type="button" data-v="' + o[0] + '" aria-pressed="' + (o[0] === cur) + '">' + o[1] + '</button>'; }).join('') + '</div>';
+  }
+  function buildLayout() {
+    $('main').innerHTML =
+      '<div style="display:flex;flex-direction:column;gap:28px">' +
+      '<section class="section" id="resumen" aria-labelledby="hResumen">' +
+        '<div class="shead"><div><span class="eyebrow">Resumen</span><h2 id="hResumen">Patrimonio y saldos</h2></div></div>' +
+        '<div class="kpis" id="kpis"></div>' +
+        '<div class="grid">' +
+          '<div class="card span-7"><div class="chead"><div><h2>Patrimonio neto</h2><div class="sub" id="nwSub"></div></div>' + '<div class="frow"><div class="field" id="nwGroupBox" hidden><label for="nwGroup">Grupo</label><select id="nwGroup"></select></div>' + seg('nwMode', [['total', 'Total'], ['groups', 'Por grupo'], ['accounts', 'Por cuenta']], S.nwMode) + '</div></div><div class="legend" id="nwLegend"></div><div class="chart tall" id="chNW" role="img" aria-label="Evolución mensual del patrimonio neto"></div></div>' +
+          '<div class="card span-5"><div class="chead"><div><h2>Saldo por cuenta</h2><div class="sub" id="accSub"></div></div></div><div class="tablebox" id="accTable"></div></div>' +
+        '</div>' +
+      '</section>' +
+      '<section class="section" id="mes" aria-labelledby="zTitle">' +
+        '<div class="shead"><div><span class="eyebrow">Mes al detalle</span><h2 id="zTitle"></h2></div><div class="zoomnav">' +
+          '<button class="btn" type="button" id="zPrev" aria-label="Mes anterior">‹</button><div class="field"><label for="zSel">Mes</label><select id="zSel"></select></div><button class="btn" type="button" id="zNext" aria-label="Mes siguiente">›</button>' +
+          '<button class="btn" type="button" id="zNow">Mes actual</button></div></div>' +
+        '<div class="mk" id="zKpis"></div>' +
+        '<div class="grid">' +
+          '<div class="card span-6"><div class="chead"><div><h2>Por cuenta y concepto</h2><div class="sub">Ingresos en verde, gastos en rojo</div></div></div><div class="chips" id="zFilter"></div><div class="tablebox tree" id="zTree"></div></div>' +
+          '<div class="card span-6"><div class="chead"><div><h2>Gasto por subcategoría</h2><div class="sub">Comparado con la media de los 3 meses anteriores · pulsa una barra para filtrar el detalle</div></div></div><div class="legend" id="zLegend"></div><div class="chart" id="chZ" role="img" aria-label="Gasto del mes por subcategoría comparado con la media de 3 meses"></div><div class="ztotal"><div class="chart" id="chZT" style="height:78px" role="img" aria-label="Gasto total del mes comparado con la media de 3 meses"></div></div></div>' +
+        '</div>' +
+        '<div class="card"><div class="chead"><h2>Movimientos del mes</h2><span class="hint" id="zCount"></span></div><div class="scrollbox"><table class="sortable" id="zTable"></table></div>' +
+          '<details id="zTrBox"><summary class="eyebrow" style="cursor:pointer">Traspasos internos del mes</summary><div class="tablebox" id="zTr" style="margin-top:8px"></div></details></div>' +
+      '</section>' +
+      '<section class="section" id="evolutivos" aria-labelledby="hEvo">' +
+        '<div class="shead"><div><span class="eyebrow">Evolutivos</span><h2 id="hEvo">Ingresos y gastos en el tiempo</h2></div></div>' +
+        '<div class="card"><div class="chead"><div><h2>Ingresos y gastos por mes</h2><div class="sub">Pulsa Ingresos, Gastos o Ahorro neto para aislar la serie con sus valores. Pulsa un mes para verlo al detalle. Sin traspasos internos.</div></div></div><div class="legend" id="ieLegend"></div><div class="chart tall" id="chIE" role="img" aria-label="Ingresos, gastos y ahorro neto por mes"></div></div>' +
+        '<div class="card"><div class="chead"><div><h2 id="brTitle">Desglose mensual</h2><div class="sub">Las 7 mayores partidas del periodo; el resto se agrupa.</div></div><div class="frow">' +
+          seg('flowKind', [['Expense', 'Gastos'], ['Income', 'Ingresos']], S.flowKind) + seg('dim', [['sub', 'Subcategoría'], ['category', 'Categoría'], ['account', 'Cuenta']], S.dim) + '</div></div><div class="legend" id="brLegend"></div><div class="chart" id="chBR" role="img" aria-label="Desglose mensual apilado"></div></div>' +
+        '<div class="card"><div class="chead"><div><h2>Matriz mensual</h2><div class="sub" id="mxSub"></div></div><div class="frow">' +
+          seg('matrixKind', [['Expense', 'Gastos'], ['Income', 'Ingresos'], ['net', 'Neto']], S.matrixKind) + seg('matrixDim', [['sub', 'Subcategoría'], ['account', 'Cuenta']], S.matrixDim) + '</div></div><div class="tablebox" id="matrix" style="max-height:520px"></div></div>' +
+      '</section>' +
+      '</div>';
+    [['nwMode', 'nwMode'], ['flowKind', 'flowKind'], ['dim', 'dim'], ['matrixKind', 'matrixKind'], ['matrixDim', 'matrixDim']].forEach(function (p) {
+      $(p[0]).querySelectorAll('button').forEach(function (b) {
+        b.onclick = function () {
+          S[p[1]] = b.getAttribute('data-v');
+          if (p[1] === 'nwMode') S.nwFocus = null;
+          $(p[0]).querySelectorAll('button').forEach(function (o) { o.setAttribute('aria-pressed', o === b); });
+          saveView(); renderAll();
+        };
+      });
+    });
+    $('zSel').innerHTML = monthOptions(S.zoom);
+    $('zSel').onchange = function () { S.zoom = +this.value; renderZoom(); };
+    $('zPrev').onclick = function () { var i = MONTHS.indexOf(S.zoom); if (i > 0) { S.zoom = MONTHS[i - 1]; renderZoom(); } };
+    $('zNext').onclick = function () { var i = MONTHS.indexOf(S.zoom); if (i < MONTHS.length - 1) { S.zoom = MONTHS[i + 1]; renderZoom(); } };
+    $('zNow').onclick = function () { S.zoom = MONTHS.indexOf(todayYm()) !== -1 ? todayYm() : MONTHS[MONTHS.length - 1]; renderZoom(); };
+    $('zTable').onclick = function (e) {
+      var th = e.target.closest('th[data-s]'); if (!th) return;
+      var k = th.getAttribute('data-s');
+      S.sort = { key: k, dir: S.sort.key === k ? -S.sort.dir : 1 };
+      renderZoom();
+    };
+    $('nwGroup').innerHTML = '<option value="all">Todos</option>' + GROUPS.map(function (g) { return '<option value="' + esc(g.name) + '">' + esc(g.name) + '</option>'; }).join('');
+    $('nwGroup').value = S.nwGroup;
+    $('nwGroup').onchange = function () { S.nwGroup = this.value; S.nwFocus = null; renderNW(); };
+    $('nwLegend').onclick = function (e) {
+      var b = e.target.closest('button.lg'); if (!b) return;
+      var n = b.getAttribute('data-n');
+      S.nwFocus = S.nwFocus === n ? null : n;
+      renderNW();
+    };
+    $('zFilter').onclick = function (e) { if (e.target.closest('button')) { S.zSub = null; renderZoom(); } };
+    $('accTable').onclick = function (e) {
+      var tr = e.target.closest('tr.g'); if (!tr) return;
+      var g = tr.getAttribute('data-g');
+      if (S.closed.has(g)) S.closed.delete(g); else S.closed.add(g);
+      renderAccTable();
+    };
+    $('ieLegend').onclick = function (e) {
+      var b = e.target.closest('button.lg'); if (!b) return;
+      var n = b.getAttribute('data-n');
+      S.ieFocus = S.ieFocus === n ? null : n;
+      renderIE();
+    };
+  }
+
+  // ---------- Charts ----------
+  var charts = {};
+  function chart(id) {
+    var el = $(id); if (!el) return null;
+    if (charts[id] && charts[id].getDom() === el) return charts[id];
+    if (charts[id]) charts[id].dispose();
+    charts[id] = echarts.init(el, null, { renderer: 'svg' });
+    return charts[id];
+  }
+  function baseOpt() {
+    var ink2 = css('--ink-2'), line = css('--line'), muted = css('--muted');
+    return {
+      animationDuration: 300,
+      textStyle: { fontFamily: css('--font-body'), color: ink2 },
+      grid: { left: 8, right: 12, top: 16, bottom: 8, containLabel: true },
+      tooltip: {
+        trigger: 'axis', confine: true, backgroundColor: css('--surface'), borderColor: css('--line-2'), borderWidth: 1,
+        textStyle: { color: css('--ink'), fontSize: 12.5 }, extraCssText: 'border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.14);',
+        axisPointer: { type: 'line', lineStyle: { color: muted, width: 1 } }
+      },
+      xAxis: { type: 'category', axisLine: { lineStyle: { color: line } }, axisTick: { show: false }, axisLabel: { color: muted, fontSize: 11, hideOverlap: true } },
+      yAxis: { type: 'value', splitLine: { lineStyle: { color: line } }, axisLabel: { color: muted, fontSize: 11, formatter: eurAxis, fontFamily: css('--font-num') } }
+    };
+  }
+  function tipRows(title, rows, total) {
+    var h = '<div style="font-weight:650;margin-bottom:4px">' + esc(title) + '</div>';
+    rows.forEach(function (r) {
+      h += '<div style="display:flex;gap:16px;justify-content:space-between;align-items:center"><span><i style="display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;background:' + r.c + '"></i>' + esc(r.n) + '</span><span style="font-family:' + css('--font-num') + '">' + eur(r.v) + '</span></div>';
+    });
+    if (total != null) h += '<div style="display:flex;gap:16px;justify-content:space-between;border-top:1px solid ' + css('--line') + ';margin-top:4px;padding-top:4px;font-weight:650"><span>' + total[0] + '</span><span style="font-family:' + css('--font-num') + '">' + eur(total[1]) + '</span></div>';
+    return h;
+  }
+  function legendHtml(items) { return items.map(function (i) { return '<span><i style="background:' + i.c + (i.line ? ';height:2px;border-radius:1px' : '') + '"></i>' + esc(i.n) + '</span>'; }).join(''); }
+  function topN(totals, n) {
+    var keys = Object.keys(totals).filter(function (k) { return Math.abs(totals[k]) > 0.004; }).sort(function (a, b) { return Math.abs(totals[b]) - Math.abs(totals[a]); });
+    return { top: keys.slice(0, n), rest: keys.slice(n) };
+  }
+
+  // ---------- Render ----------
+  function renderAll() {
+    if (!DATA) return;
+    var months = rangeMonths();
+    var flows = DATA.tx.filter(function (t) { return passFlow(t); });
+    var accSet = S.accounts;
+    var bal = M.balances(DATA, MONTHS, accSet);
+    LAST = { months: months, flows: flows, bal: bal };
+    renderKpis(months, flows, bal);
+    renderNW();
+    renderAccTable();
+    renderIE();
+    renderBreakdown(months, flows);
+    renderMatrix(months, flows);
+    renderZoom();
+    var fn = $('footnote'); fn.hidden = VIEW !== 'fin';
+    fn.textContent = 'Patrimonio neto = saldo contable de las cuentas (saldos iniciales + ingresos − gastos ± traspasos), usando la columna Value. El patrimonio responde a los filtros de cuentas y fechas; el resto de filtros afectan a ingresos, gastos y detalle.';
+  }
+
+  function renderKpis(months, flows, bal) {
+    var iTo = MONTHS.indexOf(S.to), iFrom = MONTHS.indexOf(S.from);
+    var nw = bal.total[iTo], nwPrev = iTo > 0 ? bal.total[iTo - 1] : null, nwStart = iFrom > 0 ? bal.total[iFrom - 1] : null;
+    var inc = sum(flows.filter(function (t) { return t.kind === 'Income'; }), function (t) { return t.value; });
+    var exp = sum(flows.filter(function (t) { return t.kind === 'Expense'; }), function (t) { return t.value; });
+    var net = inc - exp, rate = inc > 0 && net / inc >= -1 ? net / inc : null;
+    function delta(v, label) {
+      if (v == null) return '';
+      var cls = v > 0.5 ? 'rise good' : v < -0.5 ? 'fall bad' : '';
+      return '<span class="delta ' + cls + ' num">' + (v > 0 ? '+' : '') + eur0(v) + '</span><span>' + label + '</span>';
+    }
+    $('kpis').innerHTML =
+      '<div class="kpi hero"><span class="eyebrow">Patrimonio neto · ' + M.ymLong(S.to) + '</span><span class="v num">' + eur(nw) + '</span><span class="d">' +
+        delta(nwPrev != null ? nw - nwPrev : null, 'vs mes anterior') + ' ' + delta(nwStart != null ? nw - nwStart : null, 'en el periodo') + '</span></div>' +
+      kpi('Ingresos', eur(inc), months.length + (months.length === 1 ? ' mes' : ' meses') + ' · ' + eur0(inc / Math.max(1, months.length)) + '/mes') +
+      kpi('Gastos', eur(exp), eur0(exp / Math.max(1, months.length)) + '/mes de media') +
+      kpi('Ahorro neto', eur(net), 'Ingresos − gastos del periodo') +
+      kpi('Tasa de ahorro', rate == null ? '—' : fmtPct.format(rate), 'Sobre ingresos');
+    function kpi(l, v, d) { return '<div class="kpi"><span class="eyebrow">' + l + '</span><span class="v num">' + v + '</span><span class="d">' + d + '</span></div>'; }
+  }
+
+  // Grupos de cuentas, en el orden definido en la configuración.
+  var GROUP_SLOTS = ['--s1', '--s3', '--s5', '--s2', '--s7', '--s4', '--s6', '--s8'];
+  var GROUPS = (CFG.accountGroups || []).map(function (g, i) {
+    return { name: g.name, accounts: g.accounts || [], color: g.color || GROUP_SLOTS[i % GROUP_SLOTS.length] };
+  });
+  var OTHER_GROUP = 'Otras cuentas';
+  function groupOf(account) {
+    var a = account.toLowerCase();
+    for (var i = 0; i < GROUPS.length; i++) {
+      if (GROUPS[i].accounts.some(function (x) { return x.toLowerCase() === a; })) return GROUPS[i].name;
+    }
+    return OTHER_GROUP;
+  }
+  function groupColor(g) {
+    for (var i = 0; i < GROUPS.length; i++) if (GROUPS[i].name === g) return css(GROUPS[i].color);
+    return css('--other');
+  }
+  function groupBalances(bal) {
+    var out = {};
+    Object.keys(bal.byAccount).forEach(function (a) {
+      var g = groupOf(a), arr = bal.byAccount[a];
+      if (!out[g]) out[g] = arr.map(function () { return 0; });
+      arr.forEach(function (v, i) { out[g][i] += v; });
+    });
+    Object.keys(out).forEach(function (g) { out[g] = out[g].map(M.round2); });
+    return out;
+  }
+  function groupOrder(names) {
+    var order = GROUPS.map(function (g) { return g.name; }).concat([OTHER_GROUP]);
+    return names.slice().sort(function (a, b) { return order.indexOf(a) - order.indexOf(b); });
+  }
+
+  function renderNW() {
+    var months = LAST.months, bal = LAST.bal; if (!months) return;
+    var c = chart('chNW'), o = baseOpt(), idx = months.map(function (k) { return MONTHS.indexOf(k); });
+    o.xAxis.data = months.map(M.ymLabel);
+    o.xAxis.boundaryGap = false;
+    $('nwSub').textContent = (S.accounts ? S.accounts.size + ' cuentas' : 'Todas las cuentas') + ' · saldo a fin de mes';
+    $('nwGroupBox').hidden = S.nwMode !== 'accounts';
+    var defs;
+    if (S.nwMode === 'groups') {
+      var gb = groupBalances(bal);
+      defs = groupOrder(Object.keys(gb)).map(function (g) { return { n: g, c: groupColor(g), data: idx.map(function (i) { return gb[g][i]; }) }; });
+    } else if (S.nwMode === 'accounts') {
+      var accs = Object.keys(bal.byAccount).filter(function (a) { return S.nwGroup === 'all' || groupOf(a) === S.nwGroup; });
+      var last = idx[idx.length - 1];
+      accs.sort(function (a, b) { return bal.byAccount[b][last] - bal.byAccount[a][last]; });
+      defs = accs.map(function (a) { return { n: a, c: colorFor('account', a), data: idx.map(function (i) { return bal.byAccount[a][i]; }) }; });
+    } else {
+      defs = [{ n: 'Patrimonio neto', c: css('--net'), data: idx.map(function (i) { return bal.total[i]; }) }];
+    }
+    defs = defs.filter(function (d) { return d.data.some(function (v) { return Math.abs(v) > 0.004; }); });
+    if (S.nwFocus && !defs.some(function (d) { return d.n === S.nwFocus; })) S.nwFocus = null;
+    var single = defs.length === 1, focus = S.nwFocus;
+    var shown = focus ? defs.filter(function (d) { return d.n === focus; }) : defs;
+    o.yAxis.scale = single || !!focus;
+    o.grid.top = focus ? 30 : 16;
+    o.series = shown.map(function (d) {
+      var area = single || focus;
+      return { name: d.n, type: 'line', data: d.data, symbol: 'circle', symbolSize: focus ? 5 : 4, showSymbol: !!focus,
+        lineStyle: { width: area ? 2.5 : 2, color: d.c }, itemStyle: { color: d.c, borderColor: css('--surface'), borderWidth: 1 },
+        areaStyle: area ? { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: hexA(d.c, .22) }, { offset: 1, color: hexA(d.c, 0) }]) } : undefined,
+        label: { show: !!focus, position: 'top', formatter: function (p) { return compact(p.value); }, color: css('--ink'), fontSize: 10.5, fontFamily: css('--font-num') },
+        labelLayout: { hideOverlap: true },
+        endLabel: { show: !focus && !single && shown.length <= 6, formatter: function (p) { return compact(p.value); }, color: css('--ink-2'), fontSize: 10.5, fontFamily: css('--font-num') } };
+    });
+    o.grid.right = !focus && !single && shown.length <= 6 ? 44 : 12;
+    o.tooltip.formatter = function (p) {
+      var rows = p.slice().sort(function (a, b) { return b.value - a.value; }).map(function (s) { return { n: s.seriesName, v: s.value, c: s.color }; });
+      return tipRows(M.ymLong(months[p[0].dataIndex]), rows, rows.length > 1 ? ['Suma', sum(p, function (s) { return s.value; })] : null);
+    };
+    c.setOption(o, true);
+    $('nwLegend').innerHTML = single ? '' : defs.map(function (d) {
+      return '<button type="button" class="lg' + (focus && focus !== d.n ? ' dim' : '') + '" data-n="' + esc(d.n) + '" aria-pressed="' + (focus === d.n) + '"><i style="background:' + d.c + ';height:3px;border-radius:1px"></i>' + esc(d.n) + '</button>';
+    }).join('') + (focus ? '<button type="button" class="lg" data-n="' + esc(focus) + '">Ver todas</button>' : '');
+  }
+
+  function renderAccTable() {
+    var bal = LAST.bal; if (!bal) return;
+    var iTo = MONTHS.indexOf(S.to), iPrev = iTo > 0 ? iTo - 1 : null, i12 = iTo - 12;
+    function row(arr) { return { v: arr[iTo], d1: iPrev != null ? arr[iTo] - arr[iPrev] : null, d12: i12 >= 0 ? arr[iTo] - arr[i12] : null }; }
+    var byGroup = {};
+    Object.keys(bal.byAccount).forEach(function (a) { (byGroup[groupOf(a)] = byGroup[groupOf(a)] || []).push(a); });
+    var gb = groupBalances(bal);
+    var total = bal.total[iTo], tr = row(bal.total);
+    $('accSub').textContent = 'A fin de ' + M.ymLong(S.to) + ' · las variaciones comparan saldos, no rentabilidad · pulsa un grupo para plegarlo';
+    function d(v) { if (v == null) return '<td class="r muted">—</td>'; var c = v > 0.5 ? 'rise good' : v < -0.5 ? 'fall bad' : ''; return '<td class="r num"><span class="delta ' + c + '">' + (v > 0 ? '+' : '') + eur0(v) + '</span></td>'; }
+    function pct(v) { return '<td class="r num muted">' + (total ? fmtPct.format(v / total) : '—') + '</td>'; }
+    var body = '';
+    groupOrder(Object.keys(byGroup)).forEach(function (g) {
+      var accs = byGroup[g].sort(coll);
+      var gr = row(gb[g]);
+      if (g === OTHER_GROUP && Math.abs(gr.v) < 0.005 && accs.every(function (a) { return Math.abs(bal.byAccount[a][iTo]) < 0.005; })) return;
+      var closed = S.closed.has(g);
+      body += '<tr class="g' + (closed ? ' closed' : '') + '" data-g="' + esc(g) + '" aria-expanded="' + !closed + '"><td><i style="display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:8px;background:' + groupColor(g) + '"></i>' + esc(g) + '</td><td class="r num">' + eur(gr.v) + '</td>' + pct(gr.v) + d(gr.d1) + d(gr.d12) + '</tr>';
+      if (!closed) accs.forEach(function (a) { var r = row(bal.byAccount[a]); body += '<tr class="c"><td>' + esc(a) + '</td><td class="r num">' + eur(r.v) + '</td>' + pct(r.v) + d(r.d1) + d(r.d12) + '</tr>'; });
+    });
+    $('accTable').innerHTML = '<table class="acct"><thead><tr><th>Grupo / cuenta</th><th class="r">Saldo</th><th class="r">% total</th><th class="r" title="Saldo actual menos el saldo a fin del mes anterior">vs mes ant.</th><th class="r" title="Saldo actual menos el saldo de hace 12 meses">vs hace 12 m</th></tr></thead><tbody>' + body +
+      '</tbody><tfoot><tr><td>Total</td><td class="r num">' + eur(total) + '</td><td class="r num muted">100 %</td>' + d(tr.d1) + d(tr.d12) + '</tr></tfoot></table>';
+  }
+
+  function compact(v) {
+    var a = Math.abs(v);
+    if (a >= 1000) return (v / 1000).toLocaleString('es-ES', { maximumFractionDigits: 1 }) + 'k';
+    return Math.round(v).toLocaleString('es-ES');
+  }
+  function renderIE() {
+    var months = LAST.months, flows = LAST.flows; if (!months) return;
+    var c = chart('chIE'), o = baseOpt();
+    var inc = {}, exp = {};
+    months.forEach(function (k) { inc[k] = 0; exp[k] = 0; });
+    flows.forEach(function (t) { if (t.kind === 'Income') inc[t.ym] += t.value; else exp[t.ym] += t.value; });
+    var cInc = css('--inc-strong'), cExp = css('--exp-strong'), cNet = css('--net');
+    var showInc = S.kind !== 'Expense', showExp = S.kind !== 'Income';
+    var defs = [];
+    if (showInc) defs.push({ n: 'Ingresos', c: cInc, kind: 'bar', data: months.map(function (k) { return M.round2(inc[k]); }) });
+    if (showExp) defs.push({ n: 'Gastos', c: cExp, kind: 'bar', data: months.map(function (k) { return M.round2(exp[k]); }) });
+    if (showInc && showExp) defs.push({ n: 'Ahorro neto', c: cNet, kind: 'line', data: months.map(function (k) { return M.round2(inc[k] - exp[k]); }) });
+    if (S.ieFocus && !defs.some(function (d) { return d.n === S.ieFocus; })) S.ieFocus = null;
+    var focus = S.ieFocus, many = months.length > 18;
+    o.xAxis.data = months.map(M.ymLabel);
+    o.grid.top = focus ? 34 : 16;
+    o.series = defs.filter(function (d) { return !focus || focus === d.n; }).map(function (d) {
+      var on = !focus || focus === d.n, lab = focus === d.n;
+      var label = { show: lab, formatter: function (p) { return compact(p.value); }, color: css('--ink'), fontSize: 10.5, fontFamily: css('--font-num') };
+      if (d.kind === 'bar') {
+        if (lab && many) { label.position = 'top'; label.rotate = 90; label.align = 'left'; label.verticalAlign = 'middle'; label.distance = 4; }
+        else label.position = 'top';
+        return { name: d.n, type: 'bar', data: d.data, barGap: '12%', barMaxWidth: lab ? 26 : 18, label: label, labelLayout: { hideOverlap: true },
+          itemStyle: { color: d.c, opacity: on ? 1 : .15, borderRadius: [4, 4, 0, 0] } };
+      }
+      label.position = 'top';
+      return { name: d.n, type: 'line', data: d.data, symbol: 'circle', symbolSize: lab ? 6 : 5, showSymbol: lab || months.length <= 24, z: 5, label: label, labelLayout: { hideOverlap: true },
+        lineStyle: { width: lab ? 2.5 : 2, color: d.c, opacity: on ? 1 : .15 }, itemStyle: { color: d.c, opacity: on ? 1 : .15, borderColor: css('--surface'), borderWidth: 1.5 } };
+    });
+    o.tooltip.axisPointer = { type: 'shadow', shadowStyle: { color: hexA(css('--muted'), .1) } };
+    o.tooltip.formatter = function (p) {
+      var rows = p.filter(function (s) { return !focus || s.seriesName === focus; }).map(function (s) { return { n: s.seriesName, v: s.value, c: s.color }; });
+      return tipRows(M.ymLong(months[p[0].dataIndex]), rows) + '<div style="margin-top:4px;color:' + css('--muted') + ';font-size:11.5px">Clic para ver el mes al detalle</div>';
+    };
+    c.setOption(o, true);
+    c.getZr().off('click');
+    c.getZr().on('click', function (e) {
+      var p = c.convertFromPixel({ seriesIndex: 0 }, [e.offsetX, e.offsetY]);
+      if (!p) return; var i = Math.round(p[0]);
+      if (i >= 0 && i < months.length) { S.zoom = months[i]; renderZoom(); $('mes').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); }
+    });
+    $('ieLegend').innerHTML = defs.map(function (d) {
+      return '<button type="button" class="lg' + (focus && focus !== d.n ? ' dim' : '') + '" data-n="' + d.n + '" aria-pressed="' + (focus === d.n) + '"><i style="background:' + d.c + (d.kind === 'line' ? ';height:3px;border-radius:1px' : '') + '"></i>' + d.n + '</button>';
+    }).join('') + (focus ? '<button type="button" class="lg" data-n="' + focus + '">Ver todas</button>' : '');
+  }
+
+  function renderBreakdown(months, flows) {
+    var c = chart('chBR'), o = baseOpt(), field = fieldOf(S.dim), kind = S.flowKind;
+    var rel = flows.filter(function (t) { return t.kind === kind; });
+    var tot = {}; rel.forEach(function (t) { tot[t[field]] = (tot[t[field]] || 0) + t.value; });
+    var t = topN(tot, TOPN), names = t.top.slice(); if (t.rest.length) names.push('Otras');
+    var restSet = new Set(t.rest), grid = {};
+    names.forEach(function (n) { grid[n] = {}; months.forEach(function (k) { grid[n][k] = 0; }); });
+    rel.forEach(function (x) { var n = restSet.has(x[field]) ? 'Otras' : x[field]; if (grid[n] && grid[n][x.ym] != null) grid[n][x.ym] += x.value; });
+    $('brTitle').textContent = (kind === 'Expense' ? 'Gastos' : 'Ingresos') + ' por ' + DIM_LABEL[S.dim].toLowerCase();
+    o.xAxis.data = months.map(M.ymLabel);
+    o.series = names.map(function (n, i) {
+      return { name: n, type: 'bar', stack: 'br', data: months.map(function (k) { return M.round2(grid[n][k]); }), barMaxWidth: 28,
+        itemStyle: { color: n === 'Otras' ? css('--other') : colorFor(S.dim, n), borderColor: css('--surface'), borderWidth: 1, borderRadius: i === names.length - 1 ? [4, 4, 0, 0] : 0 } };
+    });
+    o.tooltip.axisPointer = { type: 'shadow', shadowStyle: { color: hexA(css('--muted'), .1) } };
+    o.tooltip.formatter = function (p) {
+      var rows = p.filter(function (s) { return s.value > 0.004; }).sort(function (a, b) { return b.value - a.value; }).map(function (s) { return { n: s.seriesName, v: s.value, c: s.color }; });
+      return tipRows(M.ymLong(months[p[0].dataIndex]), rows, ['Total', sum(p, function (s) { return s.value; })]);
+    };
+    c.setOption(o, true);
+    if (!names.length) $('brLegend').innerHTML = '<span class="muted">Sin movimientos con estos filtros.</span>';
+    else $('brLegend').innerHTML = legendHtml(names.map(function (n) { return { n: n === 'Otras' ? 'Otras (' + t.rest.length + ')' : n, c: n === 'Otras' ? css('--other') : colorFor(S.dim, n) }; }));
+  }
+
+  function renderMatrix(months, flows) {
+    var dim = S.matrixDim, field = fieldOf(dim), kind = S.matrixKind;
+    var rel = flows.filter(function (t) { return kind === 'net' || t.kind === kind; });
+    var val = function (t) { return kind === 'net' ? t.signed : t.value; };
+    var cells = {}, rowTot = {}, colTot = {}, groupOf = {};
+    months.forEach(function (k) { colTot[k] = 0; });
+    rel.forEach(function (t) {
+      var r = t[field]; cells[r] = cells[r] || {}; cells[r][t.ym] = (cells[r][t.ym] || 0) + val(t);
+      rowTot[r] = (rowTot[r] || 0) + val(t); colTot[t.ym] += val(t);
+      if (dim === 'sub') groupOf[r] = t.category;
+    });
+    var rows = Object.keys(rowTot).sort(function (a, b) { return Math.abs(rowTot[b]) - Math.abs(rowTot[a]); });
+    var maxCell = 0; rows.forEach(function (r) { months.forEach(function (k) { maxCell = Math.max(maxCell, Math.abs(cells[r][k] || 0)); }); });
+    var heat = css('--heat');
+    function td(v) {
+      if (!v || Math.abs(v) < 0.005) return '<td class="r num z">·</td>';
+      var a = maxCell ? Math.min(.55, Math.abs(v) / maxCell * .55) : 0;
+      return '<td class="r num" style="background:rgba(' + heat + ',' + a.toFixed(3) + ')">' + eur0(v) + '</td>';
+    }
+    var nM = months.length;
+    $('mxSub').textContent = (kind === 'Expense' ? 'Gastos' : kind === 'Income' ? 'Ingresos' : 'Neto (ingresos − gastos)') + ' por ' + DIM_LABEL[dim].toLowerCase() + ' y mes · ' + M.ymLabel(S.from) + ' – ' + M.ymLabel(S.to);
+    var head = '<thead><tr><th>' + DIM_LABEL[dim] + '</th>' + months.map(function (k) { return '<th class="r">' + M.ymLabel(k) + '</th>'; }).join('') + '<th class="r">Total</th><th class="r">Media/mes</th></tr></thead>';
+    function rowHtml(r) {
+      return '<tr><td>' + esc(r) + '</td>' + months.map(function (k) { return td(cells[r][k]); }).join('') + '<td class="r num tc">' + eur0(rowTot[r]) + '</td><td class="r num">' + eur0(rowTot[r] / nM) + '</td></tr>';
+    }
+    var body = '';
+    if (dim === 'sub') {
+      var groups = {};
+      rows.forEach(function (r) { var g = groupOf[r]; (groups[g] = groups[g] || []).push(r); });
+      Object.keys(groups).sort(function (a, b) { return Math.abs(sum(groups[b], function (r) { return rowTot[r]; })) - Math.abs(sum(groups[a], function (r) { return rowTot[r]; })); }).forEach(function (g) {
+        var gc = {}; groups[g].forEach(function (r) { months.forEach(function (k) { gc[k] = (gc[k] || 0) + (cells[r][k] || 0); }); });
+        var gt = sum(groups[g], function (r) { return rowTot[r]; });
+        body += '<tr class="grp"><td>' + esc(g) + '</td>' + months.map(function (k) { return '<td class="r num">' + (Math.abs(gc[k]) > 0.004 ? eur0(gc[k]) : '·') + '</td>'; }).join('') + '<td class="r num tc">' + eur0(gt) + '</td><td class="r num">' + eur0(gt / nM) + '</td></tr>';
+        body += groups[g].map(rowHtml).join('');
+      });
+    } else body = rows.map(rowHtml).join('');
+    var gtot = sum(months, function (k) { return colTot[k]; });
+    body += '<tr class="tot"><td>Total</td>' + months.map(function (k) { return '<td class="r num">' + eur0(colTot[k]) + '</td>'; }).join('') + '<td class="r num tc">' + eur0(gtot) + '</td><td class="r num">' + eur0(gtot / nM) + '</td></tr>';
+    var box = $('matrix');
+    box.innerHTML = rows.length ? '<table class="matrix">' + head + '<tbody>' + body + '</tbody></table>' : '<div class="empty">Sin movimientos con estos filtros.</div>';
+    box.scrollLeft = box.scrollWidth;
+  }
+
+  function renderZoom() {
+    if (!DATA || !$('zSel')) return;
+    var k = S.zoom;
+    $('zSel').value = k;
+    $('zTitle').textContent = M.ymLong(k).replace(/^./, function (c) { return c.toUpperCase(); });
+    var mt = DATA.tx.filter(function (t) { return t.ym === k && passFlow(t, true); });
+    var inc = sum(mt.filter(function (t) { return t.kind === 'Income'; }), function (t) { return t.value; });
+    var exp = sum(mt.filter(function (t) { return t.kind === 'Expense'; }), function (t) { return t.value; });
+    // Media de los 3 meses anteriores con los mismos filtros.
+    var AVG_N = 3, prev = [], p = k;
+    for (var i = 0; i < AVG_N; i++) { p = prevYm(p); if (MONTHS.indexOf(p) !== -1) prev.push(p); }
+    var prevSet = new Set(prev);
+    var pt = DATA.tx.filter(function (t) { return prevSet.has(t.ym) && passFlow(t, true); });
+    var avgExp = prev.length ? sum(pt.filter(function (t) { return t.kind === 'Expense'; }), function (t) { return t.value; }) / prev.length : null;
+    var vs = avgExp ? (exp - avgExp) / avgExp : null;
+    var net = inc - exp;
+    $('zKpis').innerHTML =
+      '<div class="kinc"><span class="eyebrow">Ingresos</span><span class="v num">+' + eur(inc) + '</span></div>' +
+      '<div class="kexp"><span class="eyebrow">Gastos</span><span class="v num">−' + eur(exp) + '</span></div>' +
+      '<div><span class="eyebrow">Ahorro neto</span><span class="v num ' + (net >= 0 ? 'inc' : 'exp') + '">' + (net > 0 ? '+' : '') + eur(net) + '</span></div>' +
+      '<div><span class="eyebrow">Gasto vs media 3 meses</span><span class="v num">' + (vs == null ? '—' : '<span class="delta ' + (vs > 0.005 ? 'rise bad' : vs < -0.005 ? 'fall good' : '') + '">' + (vs > 0 ? '+' : '') + fmtPct.format(vs) + '</span>') + '</span><span class="hint num">' + (avgExp != null ? 'Media ' + eur0(avgExp) + '/mes' : '') + '</span></div>';
+
+    // Filtro por subcategoría al pulsar una barra: afecta al árbol y a la tabla de movimientos.
+    var dt = S.zSub ? mt.filter(function (t) { return t.sub === S.zSub; }) : mt;
+    $('zFilter').innerHTML = S.zSub ? '<span class="chip"><span>Subcategoría: ' + esc(S.zSub) + '</span><button type="button" aria-label="Quitar filtro de subcategoría">×</button></span>' : '';
+    // Árbol cuenta -> concepto
+    var tree = {};
+    dt.forEach(function (t) {
+      var a = tree[t.account] = tree[t.account] || { inc: 0, exp: 0, c: {} };
+      var c = a.c[t.concept] = a.c[t.concept] || { inc: 0, exp: 0, n: 0 };
+      if (t.kind === 'Income') { a.inc += t.value; c.inc += t.value; } else { a.exp += t.value; c.exp += t.value; }
+      c.n++;
+    });
+    var accs = Object.keys(tree).sort(function (x, y) { return (tree[y].exp + tree[y].inc) - (tree[x].exp + tree[x].inc); });
+    function mInc(v) { return v > 0.004 ? '<span class="inc">+' + eur(v) + '</span>' : '<span class="muted">—</span>'; }
+    function mExp(v) { return v > 0.004 ? '<span class="exp">−' + eur(v) + '</span>' : '<span class="muted">—</span>'; }
+    $('zTree').innerHTML = accs.length ? '<div class="hdr"><span>Cuenta / concepto</span><span class="r">Ingresos</span><span class="r">Gastos</span></div>' + accs.map(function (a, ai) {
+      var node = tree[a];
+      var concepts = Object.keys(node.c).sort(function (x, y) { return (node.c[y].exp + node.c[y].inc) - (node.c[x].exp + node.c[x].inc); });
+      return '<details' + (ai < 2 ? ' open' : '') + '><summary><span class="n">' + esc(a) + ' <span class="muted" style="font-weight:400">· ' + concepts.length + '</span></span><span class="r num">' + mInc(node.inc) + '</span><span class="r num">' + mExp(node.exp) + '</span></summary>' +
+        concepts.map(function (cn) { var c = node.c[cn]; return '<div class="row"><span class="n" title="' + esc(cn) + '">' + esc(cn) + (c.n > 1 ? ' <span class="muted">×' + c.n + '</span>' : '') + '</span><span class="r num">' + mInc(c.inc) + '</span><span class="r num">' + mExp(c.exp) + '</span></div>'; }).join('') + '</details>';
+    }).join('') : '<div class="empty">Sin movimientos en ' + M.ymLong(k) + ' con estos filtros.</div>';
+
+    // Subcategorías del mes vs media de 3 meses: rojo si la supera, verde si aún tiene margen.
+    var cur = {}, avg = {};
+    mt.forEach(function (t) { if (t.kind === 'Expense') cur[t.sub] = (cur[t.sub] || 0) + t.value; });
+    if (prev.length) pt.forEach(function (t) { if (t.kind === 'Expense') avg[t.sub] = (avg[t.sub] || 0) + t.value / prev.length; });
+    var subs = Object.keys(Object.assign({}, cur, avg)).filter(function (s) { return (cur[s] || 0) > 0.004 || (avg[s] || 0) > 0.5; })
+      .sort(function (a, b) { return (cur[a] || 0) - (cur[b] || 0) || (avg[a] || 0) - (avg[b] || 0); });
+    var c = chart('chZ'), o = baseOpt(), cOver = css('--exp-strong'), cUnder = css('--inc-strong'), cAvg = css('--ink');
+    $('chZ').style.height = Math.max(220, subs.length * 28 + 40) + 'px'; c.resize();
+    o.grid.right = 60;
+    o.xAxis = { type: 'value', splitLine: { lineStyle: { color: css('--line') } }, axisLabel: { color: css('--muted'), fontSize: 11, formatter: eurAxis, fontFamily: css('--font-num') } };
+    o.yAxis = { type: 'category', data: subs, axisLine: { lineStyle: { color: css('--line') } }, axisTick: { show: false }, axisLabel: { color: css('--ink-2'), fontSize: 12 } };
+    o.series = [
+      { name: 'Gasto del mes', type: 'bar', barMaxWidth: 14,
+        data: subs.map(function (s) { var v = M.round2(cur[s] || 0); return { value: v, itemStyle: { color: v > (avg[s] || 0) + 0.004 ? cOver : cUnder, opacity: !S.zSub || S.zSub === s ? 1 : .3, borderRadius: [0, 4, 4, 0] } }; }),
+        label: { show: true, position: 'right', formatter: function (p) { return p.value ? eur0(p.value) : ''; }, color: css('--ink-2'), fontSize: 11, fontFamily: css('--font-num') } },
+      { name: 'Media 3 meses', type: 'scatter', data: subs.map(function (s) { return M.round2(avg[s] || 0); }), symbol: 'rect', symbolSize: [3, 18], itemStyle: { color: cAvg }, z: 5 }
+    ];
+    o.tooltip.axisPointer = { type: 'shadow', shadowStyle: { color: hexA(css('--muted'), .1) } };
+    o.tooltip.formatter = function (p) {
+      var s = p[0].name, v = cur[s] || 0, a = avg[s] || 0, diff = v - a;
+      return tipRows(s, [{ n: 'Gasto de ' + M.ymLabel(k), v: v, c: v > a + 0.004 ? cOver : cUnder }, { n: 'Media 3 meses', v: a, c: cAvg }]) +
+        '<div style="margin-top:4px;font-weight:650;color:' + (diff > 0.004 ? css('--exp') : css('--inc')) + '">' + (diff > 0.004 ? 'Supera la media en ' + eur(diff) : 'Margen restante: ' + eur(-diff)) + '</div>';
+    };
+    o.yAxis.triggerEvent = true;
+    o.yAxis.axisLabel.formatter = function (v) { return v === S.zSub ? '{b|' + v + '}' : v; };
+    o.yAxis.axisLabel.rich = { b: { fontWeight: 700, color: css('--ink'), fontSize: 12 } };
+    c.setOption(o, true);
+    c.off('click');
+    c.on('click', function (ev) {
+      var name = ev.componentType === 'yAxis' ? ev.value : ev.name;
+      if (!name) return;
+      S.zSub = S.zSub === name ? null : name;
+      renderZoom();
+    });
+    // Barra total: mismo criterio, con su propia escala para no aplastar las subcategorías.
+    var ct = chart('chZT'), ot = baseOpt(), totV = M.round2(exp), totA = M.round2(avgExp || 0);
+    ot.grid = { left: 8, right: 60, top: 6, bottom: 4, containLabel: true };
+    ot.xAxis = { type: 'value', show: false, max: function (v) { return Math.max(v.max, totA) * 1.08; } };
+    ot.yAxis = { type: 'category', data: ['Total del mes'], axisLine: { lineStyle: { color: css('--line') } }, axisTick: { show: false }, axisLabel: { color: css('--ink'), fontSize: 12.5, fontWeight: 700 } };
+    ot.series = [
+      { name: 'Gasto total', type: 'bar', barMaxWidth: 20, data: [{ value: totV, itemStyle: { color: avgExp != null && totV > totA + 0.004 ? cOver : cUnder, borderRadius: [0, 4, 4, 0] } }],
+        label: { show: true, position: 'right', formatter: function (p) { return eur0(p.value); }, color: css('--ink'), fontSize: 11.5, fontWeight: 600, fontFamily: css('--font-num') } },
+      { name: 'Media 3 meses', type: 'scatter', data: avgExp != null ? [totA] : [], symbol: 'rect', symbolSize: [3, 26], itemStyle: { color: cAvg }, z: 5 }
+    ];
+    ot.tooltip.axisPointer = { type: 'none' };
+    ot.tooltip.formatter = function () {
+      var diff = totV - totA;
+      return tipRows('Total del mes', [{ n: 'Gasto de ' + M.ymLabel(k), v: totV, c: totV > totA + 0.004 ? cOver : cUnder }, { n: 'Media 3 meses', v: totA, c: cAvg }]) +
+        (avgExp != null ? '<div style="margin-top:4px;font-weight:650;color:' + (diff > 0.004 ? css('--exp') : css('--inc')) + '">' + (diff > 0.004 ? 'Supera la media en ' + eur(diff) : 'Margen restante: ' + eur(-diff)) + '</div>' : '');
+    };
+    ct.setOption(ot, true);
+
+    $('zLegend').innerHTML = subs.length ? legendHtml([{ n: 'Supera la media', c: cOver }, { n: 'Con margen', c: cUnder }, { n: 'Media 3 meses previos', c: cAvg, line: true }]) : '<span class="muted">Sin gastos este mes.</span>';
+
+    // Tabla de detalle
+    var key = S.sort.key, dir = S.sort.dir;
+    var getters = { date: function (t) { return t.d; }, concept: function (t) { return t.concept.toLowerCase(); }, account: function (t) { return t.account; }, category: function (t) { return t.category; }, sub: function (t) { return t.sub; }, kind: function (t) { return t.kind; }, value: function (t) { return t.signed; } };
+    var g = getters[key] || getters.date;
+    var sorted = dt.slice().sort(function (a, b) { var x = g(a), y = g(b); return (x < y ? -1 : x > y ? 1 : 0) * dir || (b.id - a.id); });
+    var cols = [['concept', 'Concepto'], ['account', 'Cuenta'], ['category', 'Categoría'], ['sub', 'Subcategoría'], ['kind', 'Tipo'], ['value', 'Importe']];
+    $('zTable').innerHTML = '<thead><tr>' + cols.map(function (cl) { return '<th data-s="' + cl[0] + '"' + (cl[0] === 'value' ? ' class="r"' : '') + (cl[0] === key ? ' aria-sort="' + (dir > 0 ? 'ascending' : 'descending') + '"' : '') + '>' + cl[1] + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      (sorted.length ? sorted.map(function (t) {
+        var isInc = t.kind === 'Income';
+        return '<tr><td>' + esc(t.concept) + '</td><td>' + esc(t.account) + '</td><td>' + esc(t.category) + '</td><td>' + esc(t.sub) + '</td><td><span class="tag ' + (isInc ? 'inc' : 'exp') + '">' + (isInc ? 'Ingreso' : 'Gasto') + '</span></td><td class="r num ' + (t.signed >= 0 ? 'inc' : 'exp') + '">' + (t.signed > 0 ? '+' : t.signed < 0 ? '−' : '') + eur(Math.abs(t.signed)) + '</td></tr>';
+      }).join('') : '<tr><td colspan="6" class="empty">Sin movimientos.</td></tr>') + '</tbody>';
+    $('zCount').textContent = sorted.length + ' movimientos' + (S.zSub ? ' de ' + S.zSub : '') + ' · pulsa una cabecera para ordenar';
+
+    var trs = DATA.tr.filter(function (t) { return t.ym === k && (!S.accounts || S.accounts.has(t.from) || S.accounts.has(t.to)); });
+    $('zTr').innerHTML = trs.length ? '<table><thead><tr><th>Fecha</th><th>Origen</th><th>Destino</th><th>Comentario</th><th class="r">Importe</th></tr></thead><tbody>' +
+      trs.map(function (t) { return '<tr><td class="num">' + String(t.d).padStart(2, '0') + '/' + String(t.m).padStart(2, '0') + '</td><td>' + esc(t.from) + '</td><td>' + esc(t.to) + '</td><td class="muted">' + esc(t.comments) + '</td><td class="r num">' + eur(t.value) + '</td></tr>'; }).join('') + '</tbody></table>' : '<div class="empty">Sin traspasos este mes.</div>';
+    $('zTrBox').querySelector('summary').textContent = 'Traspasos internos del mes (' + trs.length + ')';
+  }
+
+  function hexA(hex, a) {
+    var h = hex.replace('#', '');
+    if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join('');
+    var n = parseInt(h, 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+
+  // ---------- Vista Inversiones (hoja "Inversiones", independiente del resto) ----------
+  var INV = null, VIEW = 'fin';
+  var IS = { cat: 'all', evoMode: 'total', evoFocus: null, opCat: 'all', opAsset: 'all', opAction: 'all', opSort: { key: 'date', dir: -1 } };
+  var INV_CAT_COLORS = CFG.investmentCategoryColors || {};
+  var INV_SPARE = ['--s4', '--s6', '--s8'];
+  function invCatColor(c) {
+    if (INV_CAT_COLORS[c]) return css(INV_CAT_COLORS[c]);
+    var extra = INV.cats.filter(function (x) { return !INV_CAT_COLORS[x]; });
+    var i = extra.indexOf(c);
+    return i >= 0 && i < INV_SPARE.length ? css(INV_SPARE[i]) : css('--other');
+  }
+  function fmtDate(n) { var d = n % 100, m = Math.floor(n / 100) % 100, y = Math.floor(n / 10000); return String(d).padStart(2, '0') + '/' + String(m).padStart(2, '0') + '/' + y; }
+  function fmtYm(n) { return M.ymLabel(Math.floor(n / 100)); }
+
+  function ingestInv(wb) {
+    var r = M.parseInvestments(XLSX, wb);
+    var cats = [];
+    r.ops.forEach(function (o) { if (cats.indexOf(o.category) === -1) cats.push(o.category); });
+    INV = { ops: r.ops, problems: r.problems, cats: cats };
+    if (IS.cat !== 'all' && cats.indexOf(IS.cat) === -1) IS.cat = 'all';
+    buildInvLayout();
+    if (VIEW === 'inv') renderInv();
+  }
+
+  function invStatus(p) {
+    if (p.active) return { t: 'Vivo', c: 'live' };
+    var last = Math.floor(p.last / 100), now = todayYm(), k = last, n = 0;
+    while (k < now && n < 5) { k = M.nextYm(k); n++; }
+    if (p.pl > 0 && n <= 3) return { t: 'Solo rendimientos', c: 'yield' };
+    return { t: 'Cerrado', c: 'closed' };
+  }
+
+  function buildInvLayout() {
+    var cats = INV.cats;
+    $('invMain').innerHTML =
+      '<div style="display:flex;flex-direction:column;gap:28px">' +
+      '<section class="section" id="cartera" aria-labelledby="hCartera">' +
+        '<div class="shead"><div><span class="eyebrow">Inversiones</span><h2 id="hCartera">Cartera y estado actual</h2></div>' +
+          '<div class="seg invcat" role="group" aria-label="Categoría" id="invCat"><button type="button" data-v="all">Todas</button>' + cats.map(function (c) { return '<button type="button" data-v="' + esc(c) + '">' + esc(c) + '</button>'; }).join('') + '</div></div>' +
+        (INV.problems.length ? '<div class="banner warn"><p>' + esc(INV.problems.join(' ')) + '</p></div>' : '') +
+        '<div class="kpis inv" id="invKpis"></div>' +
+        '<div class="grid">' +
+          '<div class="card span-7"><div class="chead"><div><h2>Capital vivo por activo</h2><div class="sub">Coste de lo que sigue invertido hoy, sin valor de mercado</div></div></div><div class="legend" id="invLiveLegend"></div><div class="chart" id="chInvLive" role="img" aria-label="Capital vivo por activo"></div></div>' +
+          '<div class="card span-5"><div class="chead"><div><h2>Reparto por categoría</h2><div class="sub">Capital vivo y P&amp;L realizado</div></div></div><div id="invMix"></div></div>' +
+        '</div>' +
+        '<div class="card"><div class="chead"><div><h2>Posiciones</h2><div class="sub">Agrupadas por categoría · el P&amp;L es realizado (ventas, intereses y amortizaciones registradas)</div></div></div><div class="tablebox" id="invPos"></div></div>' +
+      '</section>' +
+      '<section class="section" id="historico" aria-labelledby="hHist">' +
+        '<div class="shead"><div><span class="eyebrow">Histórico</span><h2 id="hHist">Cómo se ha construido la cartera</h2></div></div>' +
+        '<div class="grid">' +
+          '<div class="card span-7"><div class="chead"><div><h2>Capital invertido acumulado</h2><div class="sub">A fin de cada mes · pulsa una serie para aislarla</div></div>' + seg('invEvoMode', [['total', 'Total'], ['cats', 'Por categoría']], IS.evoMode) + '</div><div class="legend" id="invEvoLegend"></div><div class="chart tall" id="chInvEvo" role="img" aria-label="Evolución del capital invertido"></div></div>' +
+          '<div class="card span-5"><div class="chead"><div><h2>P&amp;L realizado por activo</h2><div class="sub">Ganancias en verde, pérdidas en rojo</div></div></div><div class="chart tall" id="chInvPL" role="img" aria-label="P&amp;L realizado por activo"></div></div>' +
+        '</div>' +
+        '<div class="card"><div class="chead"><div><h2>Aportaciones y retiradas por año</h2><div class="sub">Importe de cada operación según la hoja</div></div></div><div class="legend" id="invYearLegend"></div><div class="chart" id="chInvYear" role="img" aria-label="Aportaciones y retiradas por año"></div></div>' +
+        '<div class="card"><div class="chead"><h2>Operaciones</h2><div class="frow">' +
+          '<div class="field"><label for="opAsset">Activo</label><select id="opAsset"></select></div>' +
+          seg('opAction', [['all', 'Todas'], ['Deposit', 'Aportaciones'], ['Withdraw', 'Retiradas']], IS.opAction) +
+          '<span class="hint" id="opCount"></span></div></div><div class="scrollbox"><table class="sortable" id="invOps"></table></div></div>' +
+      '</section></div>';
+    $('invCat').onclick = function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      IS.cat = b.getAttribute('data-v'); IS.evoFocus = null; IS.opAsset = 'all'; renderInv();
+    };
+    $('invEvoMode').onclick = function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      IS.evoMode = b.getAttribute('data-v'); IS.evoFocus = null; renderInv();
+    };
+    $('invEvoLegend').onclick = function (e) {
+      var b = e.target.closest('button.lg'); if (!b) return;
+      var n = b.getAttribute('data-n'); IS.evoFocus = IS.evoFocus === n ? null : n; renderInvEvo();
+    };
+    $('opAction').onclick = function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      IS.opAction = b.getAttribute('data-v'); renderInvOps();
+    };
+    $('opAsset').onchange = function () { IS.opAsset = this.value; renderInvOps(); };
+    $('invOps').onclick = function (e) {
+      var th = e.target.closest('th[data-s]'); if (!th) return;
+      var k = th.getAttribute('data-s');
+      IS.opSort = { key: k, dir: IS.opSort.key === k ? -IS.opSort.dir : (k === 'date' || k === 'value' ? -1 : 1) };
+      renderInvOps();
+    };
+    $('invPos').onclick = function (e) {
+      var tr = e.target.closest('tr[data-asset]'); if (!tr) return;
+      IS.opAsset = tr.getAttribute('data-asset');
+      renderInvOps();
+      $('invOps').closest('.card').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    };
+  }
+
+  function invOps() { return INV.ops.filter(function (o) { return IS.cat === 'all' || o.category === IS.cat; }); }
+
+  function renderInv() {
+    if (!INV || !$('invKpis')) return;
+    $('invCat').querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === IS.cat); });
+    $('invEvoMode').querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === IS.evoMode); });
+    var ops = invOps(), pos = M.positions(ops);
+    var live = sum(pos, function (p) { return p.live; }), pl = sum(pos, function (p) { return p.pl; });
+    var dep = sum(pos, function (p) { return p.deposited; });
+    var nLive = pos.filter(function (p) { return p.active; }).length;
+    var closed = pos.filter(function (p) { return !p.active && p.deposited > 0; });
+    var cRet = sum(closed, function (p) { return p.deposited; }) ? sum(closed, function (p) { return p.pl; }) / sum(closed, function (p) { return p.deposited; }) : null;
+    var first = ops.length ? ops[0].date : null;
+    $('invKpis').innerHTML =
+      '<div class="kpi hero"><span class="eyebrow">Capital invertido hoy</span><span class="v num">' + eur(live) + '</span><span class="d">' + nLive + ' posiciones vivas · coste, no valor de mercado</span></div>' +
+      '<div class="kpi"><span class="eyebrow">P&amp;L realizado</span><span class="v num ' + (pl >= 0 ? 'inc' : 'exp') + '">' + (pl > 0 ? '+' : '') + eur(pl) + '</span><span class="d">Acumulado desde ' + (first ? fmtYm(first) : '—') + '</span></div>' +
+      '<div class="kpi"><span class="eyebrow">Total aportado</span><span class="v num">' + eur(dep) + '</span><span class="d">Suma de todas las aportaciones</span></div>' +
+      '<div class="kpi"><span class="eyebrow">Rentabilidad cerradas</span><span class="v num ' + (cRet == null ? '' : cRet >= 0 ? 'inc' : 'exp') + '">' + (cRet == null ? '—' : (cRet > 0 ? '+' : '') + fmtPct.format(cRet)) + '</span><span class="d">' + closed.length + ' posiciones cerradas · P&amp;L / aportado</span></div>' +
+      '<div class="kpi"><span class="eyebrow">Operaciones</span><span class="v num">' + ops.length + '</span><span class="d">' + (ops.length ? fmtYm(ops[0].date) + ' – ' + fmtYm(ops[ops.length - 1].date) : '') + '</span></div>';
+    renderInvLive(pos);
+    renderInvMix(pos);
+    renderInvPos(pos);
+    renderInvEvo();
+    renderInvPL(pos);
+    renderInvYear(ops);
+    var assets = []; ops.forEach(function (o) { if (assets.indexOf(o.asset) === -1) assets.push(o.asset); });
+    assets.sort(coll);
+    if (IS.opAsset !== 'all' && assets.indexOf(IS.opAsset) === -1) IS.opAsset = 'all';
+    $('opAsset').innerHTML = '<option value="all">Todos</option>' + assets.map(function (a) { return '<option value="' + esc(a) + '">' + esc(a) + '</option>'; }).join('');
+    renderInvOps();
+  }
+
+  function renderInvLive(pos) {
+    var act = pos.filter(function (p) { return p.active; }).sort(function (a, b) { return a.live - b.live; });
+    var c = chart('chInvLive'), o = baseOpt();
+    $('chInvLive').style.height = Math.max(200, act.length * 34 + 40) + 'px'; c.resize();
+    var total = sum(act, function (p) { return p.live; });
+    o.grid.right = 130;
+    o.xAxis = { type: 'value', splitLine: { lineStyle: { color: css('--line') } }, axisLabel: { color: css('--muted'), fontSize: 11, formatter: eurAxis, fontFamily: css('--font-num') } };
+    o.yAxis = { type: 'category', data: act.map(function (p) { return p.asset; }), axisLine: { lineStyle: { color: css('--line') } }, axisTick: { show: false }, axisLabel: { color: css('--ink-2'), fontSize: 12 } };
+    o.series = [{ type: 'bar', barMaxWidth: 18, data: act.map(function (p) { return { value: p.live, itemStyle: { color: invCatColor(p.category), borderRadius: [0, 4, 4, 0] } }; }),
+      label: { show: true, position: 'right', formatter: function (p) { return eur0(p.value) + '  ' + (total ? fmtPct.format(p.value / total) : ''); }, color: css('--ink-2'), fontSize: 11, fontFamily: css('--font-num') } }];
+    o.tooltip.axisPointer = { type: 'shadow', shadowStyle: { color: hexA(css('--muted'), .1) } };
+    o.tooltip.formatter = function (p) { var ps = act[p[0].dataIndex]; return tipRows(ps.asset + ' · ' + ps.category, [{ n: 'Capital vivo', v: ps.live, c: invCatColor(ps.category) }, { n: 'Aportado', v: ps.deposited, c: css('--other') }]); };
+    c.setOption(o, true);
+    var cats = []; act.forEach(function (p) { if (cats.indexOf(p.category) === -1) cats.push(p.category); });
+    $('invLiveLegend').innerHTML = act.length ? legendHtml(cats.map(function (k) { return { n: k, c: invCatColor(k) }; })) : '<span class="muted">No hay posiciones vivas en esta selección.</span>';
+  }
+
+  function renderInvMix(pos) {
+    var by = {};
+    pos.forEach(function (p) { var b = by[p.category] = by[p.category] || { live: 0, pl: 0, n: 0 }; b.live += p.live; b.pl += p.pl; if (p.active) b.n++; });
+    var cats = Object.keys(by).sort(function (a, b) { return by[b].live - by[a].live || by[b].pl - by[a].pl; });
+    var total = sum(cats, function (k) { return by[k].live; });
+    $('invMix').innerHTML = '<div class="mix">' + cats.map(function (k) {
+      var b = by[k], share = total ? b.live / total : 0;
+      return '<div class="mixrow"><div class="mixtop"><span><i style="background:' + invCatColor(k) + '"></i>' + esc(k) + ' <span class="muted">· ' + b.n + ' vivas</span></span><span class="num">' + eur0(b.live) + ' <span class="muted">' + fmtPct.format(share) + '</span></span></div>' +
+        '<div class="mixbar"><span style="width:' + (share * 100).toFixed(2) + '%;background:' + invCatColor(k) + '"></span></div>' +
+        '<div class="mixpl">P&amp;L realizado <span class="num ' + (b.pl > 0.004 ? 'inc' : b.pl < -0.004 ? 'exp' : 'muted') + '">' + (b.pl > 0 ? '+' : '') + eur0(b.pl) + '</span></div></div>';
+    }).join('') + '</div>';
+  }
+
+  function renderInvPos(pos) {
+    var by = {};
+    pos.forEach(function (p) { (by[p.category] = by[p.category] || []).push(p); });
+    var cats = Object.keys(by).sort(function (a, b) { return sum(by[b], function (p) { return p.live; }) - sum(by[a], function (p) { return p.live; }) || coll(a, b); });
+    function plCell(v) { return '<td class="r num ' + (v > 0.004 ? 'inc' : v < -0.004 ? 'exp' : 'muted') + '">' + (v > 0.004 ? '+' : '') + eur(v) + '</td>'; }
+    function retCell(v) { return '<td class="r num ' + (v == null ? 'muted' : v > 0.0005 ? 'inc' : v < -0.0005 ? 'exp' : 'muted') + '">' + (v == null ? '—' : (v > 0 ? '+' : '') + fmtPct.format(v)) + '</td>'; }
+    var body = '';
+    cats.forEach(function (k) {
+      var ps = by[k].sort(function (a, b) { return (b.active - a.active) || b.live - a.live || b.pl - a.pl; });
+      var g = { deposited: sum(ps, function (p) { return p.deposited; }), withdrawn: sum(ps, function (p) { return p.withdrawn; }), live: sum(ps, function (p) { return p.live; }), pl: sum(ps, function (p) { return p.pl; }) };
+      body += '<tr class="g"><td><i style="display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:8px;background:' + invCatColor(k) + '"></i>' + esc(k) + '</td><td class="r num">' + eur(g.deposited) + '</td><td class="r num">' + eur(g.withdrawn) + '</td><td class="r num">' + eur(g.live) + '</td>' + plCell(g.pl) + retCell(g.deposited ? g.pl / g.deposited : null) + '<td></td><td></td></tr>';
+      ps.forEach(function (p) {
+        var st = invStatus(p);
+        body += '<tr class="c" data-asset="' + esc(p.asset) + '" title="Ver operaciones de ' + esc(p.asset) + '"><td>' + esc(p.asset) + '</td><td class="r num">' + eur(p.deposited) + '</td><td class="r num">' + eur(p.withdrawn) + '</td><td class="r num">' + (p.active ? eur(p.live) : '<span class="muted">—</span>') + '</td>' + plCell(p.pl) + retCell(p.ret) +
+          '<td><span class="st ' + st.c + '">' + st.t + '</span></td><td class="num muted">' + fmtYm(p.first) + ' – ' + fmtYm(p.last) + '</td></tr>';
+      });
+    });
+    var T = { deposited: sum(pos, function (p) { return p.deposited; }), withdrawn: sum(pos, function (p) { return p.withdrawn; }), live: sum(pos, function (p) { return p.live; }), pl: sum(pos, function (p) { return p.pl; }) };
+    $('invPos').innerHTML = pos.length ? '<table class="acct invpos"><thead><tr><th>Categoría / activo</th><th class="r">Aportado</th><th class="r" title="Ventas, rescates, intereses y amortizaciones registradas como retirada">Retirado / cobrado</th><th class="r">Capital vivo</th><th class="r">P&amp;L realizado</th><th class="r" title="P&amp;L realizado sobre lo aportado">P&amp;L / aportado</th><th>Estado</th><th>Periodo</th></tr></thead><tbody>' + body +
+      '</tbody><tfoot><tr><td>Total</td><td class="r num">' + eur(T.deposited) + '</td><td class="r num">' + eur(T.withdrawn) + '</td><td class="r num">' + eur(T.live) + '</td>' + plCell(T.pl) + retCell(T.deposited ? T.pl / T.deposited : null) + '<td></td><td></td></tr></tfoot></table>' : '<div class="empty">Sin operaciones.</div>';
+  }
+
+  function renderInvEvo() {
+    var ops = invOps(); if (!ops.length) { chart('chInvEvo').clear(); $('invEvoLegend').innerHTML = ''; return; }
+    var start = ops[0].ym, end = Math.max(ops[ops.length - 1].ym, todayYm()), months = [];
+    for (var k = start; k <= end; k = M.nextYm(k)) months.push(k);
+    var keys = IS.evoMode === 'cats' ? INV.cats.filter(function (c) { return ops.some(function (o) { return o.category === c; }); }) : ['Capital invertido'];
+    var series = {};
+    keys.forEach(function (key) {
+      var run = 0, idx = 0, arr = [];
+      var rel = IS.evoMode === 'cats' ? ops.filter(function (o) { return o.category === key; }) : ops;
+      months.forEach(function (m) { while (idx < rel.length && rel[idx].ym <= m) { run += rel[idx].inv; idx++; } arr.push(M.round2(run)); });
+      series[key] = arr;
+    });
+    if (IS.evoFocus && keys.indexOf(IS.evoFocus) === -1) IS.evoFocus = null;
+    var focus = IS.evoFocus, single = keys.length === 1;
+    var shown = focus ? [focus] : keys;
+    var c = chart('chInvEvo'), o = baseOpt();
+    o.xAxis.data = months.map(M.ymLabel); o.xAxis.boundaryGap = false;
+    o.grid.top = focus ? 30 : 16;
+    o.series = shown.map(function (key) {
+      var col = single ? css('--net') : invCatColor(key), area = single || focus;
+      return { name: key, type: 'line', step: 'end', data: series[key], showSymbol: false, lineStyle: { width: 2, color: col }, itemStyle: { color: col },
+        areaStyle: area ? { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: hexA(col, .22) }, { offset: 1, color: hexA(col, 0) }]) } : undefined,
+        endLabel: { show: true, formatter: function (p) { return compact(p.value); }, color: css('--ink-2'), fontSize: 10.5, fontFamily: css('--font-num') } };
+    });
+    o.grid.right = 48;
+    o.tooltip.formatter = function (p) {
+      var rows = p.slice().sort(function (a, b) { return b.value - a.value; }).map(function (s) { return { n: s.seriesName, v: s.value, c: s.color }; });
+      return tipRows(M.ymLong(months[p[0].dataIndex]), rows, rows.length > 1 ? ['Total', sum(p, function (s) { return s.value; })] : null);
+    };
+    c.setOption(o, true);
+    $('invEvoLegend').innerHTML = single ? '' : keys.map(function (key) {
+      return '<button type="button" class="lg' + (focus && focus !== key ? ' dim' : '') + '" data-n="' + esc(key) + '" aria-pressed="' + (focus === key) + '"><i style="background:' + invCatColor(key) + ';height:3px;border-radius:1px"></i>' + esc(key) + '</button>';
+    }).join('') + (focus ? '<button type="button" class="lg" data-n="' + esc(focus) + '">Ver todas</button>' : '');
+  }
+
+  function renderInvPL(pos) {
+    var rel = pos.filter(function (p) { return Math.abs(p.pl) > 0.004; }).sort(function (a, b) { return a.pl - b.pl; });
+    var c = chart('chInvPL'), o = baseOpt();
+    o.grid.right = 70; o.grid.left = 8;
+    o.xAxis = { type: 'value', splitLine: { lineStyle: { color: css('--line') } }, axisLabel: { color: css('--muted'), fontSize: 11, formatter: eurAxis, fontFamily: css('--font-num') } };
+    o.yAxis = { type: 'category', data: rel.map(function (p) { return p.asset; }), axisLine: { lineStyle: { color: css('--line-2') } }, axisTick: { show: false }, axisLabel: { color: css('--ink-2'), fontSize: 12 } };
+    o.series = [{ type: 'bar', barMaxWidth: 16, data: rel.map(function (p) { return { value: p.pl, itemStyle: { color: p.pl >= 0 ? css('--inc-strong') : css('--exp-strong'), borderRadius: p.pl >= 0 ? [0, 4, 4, 0] : [4, 0, 0, 4] } }; }),
+      label: { show: true, position: 'right', formatter: function (p) { return (p.value > 0 ? '+' : '') + eur0(p.value); }, color: css('--ink-2'), fontSize: 11, fontFamily: css('--font-num') } }];
+    o.tooltip.axisPointer = { type: 'shadow', shadowStyle: { color: hexA(css('--muted'), .1) } };
+    o.tooltip.formatter = function (p) { var ps = rel[p[0].dataIndex]; return tipRows(ps.asset + ' · ' + ps.category, [{ n: 'P&L realizado', v: ps.pl, c: ps.pl >= 0 ? css('--inc-strong') : css('--exp-strong') }, { n: 'Aportado', v: ps.deposited, c: css('--other') }]); };
+    c.setOption(o, true);
+  }
+
+  function renderInvYear(ops) {
+    var years = []; ops.forEach(function (o) { if (years.indexOf(o.y) === -1) years.push(o.y); }); years.sort();
+    var dep = {}, wd = {}; years.forEach(function (y) { dep[y] = 0; wd[y] = 0; });
+    ops.forEach(function (o) { if (o.action === 'Deposit') dep[o.y] += o.value; else wd[o.y] += o.value; });
+    var c = chart('chInvYear'), o = baseOpt(), cD = css('--net'), cW = css('--s2');
+    o.xAxis.data = years.map(String);
+    o.series = [
+      { name: 'Aportaciones', type: 'bar', data: years.map(function (y) { return M.round2(dep[y]); }), barMaxWidth: 34, barGap: '10%', itemStyle: { color: cD, borderRadius: [4, 4, 0, 0] }, label: { show: true, position: 'top', formatter: function (p) { return compact(p.value); }, color: css('--ink-2'), fontSize: 10.5, fontFamily: css('--font-num') } },
+      { name: 'Retiradas y cobros', type: 'bar', data: years.map(function (y) { return M.round2(wd[y]); }), barMaxWidth: 34, itemStyle: { color: cW, borderRadius: [4, 4, 0, 0] }, label: { show: true, position: 'top', formatter: function (p) { return p.value ? compact(p.value) : ''; }, color: css('--ink-2'), fontSize: 10.5, fontFamily: css('--font-num') } }
+    ];
+    o.grid.top = 24;
+    o.tooltip.axisPointer = { type: 'shadow', shadowStyle: { color: hexA(css('--muted'), .1) } };
+    o.tooltip.formatter = function (p) { return tipRows('Año ' + years[p[0].dataIndex], p.map(function (s) { return { n: s.seriesName, v: s.value, c: s.color }; })); };
+    c.setOption(o, true);
+    $('invYearLegend').innerHTML = legendHtml([{ n: 'Aportaciones', c: cD }, { n: 'Retiradas y cobros', c: cW }]);
+  }
+
+  function renderInvOps() {
+    $('opAsset').value = IS.opAsset;
+    $('opAction').querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === IS.opAction); });
+    var rows = invOps().filter(function (o) { return (IS.opAsset === 'all' || o.asset === IS.opAsset) && (IS.opAction === 'all' || o.action === IS.opAction); });
+    var key = IS.opSort.key, dir = IS.opSort.dir;
+    var g = { date: function (o) { return o.date; }, concept: function (o) { return o.concept.toLowerCase(); }, asset: function (o) { return o.asset.toLowerCase(); }, category: function (o) { return o.category; }, action: function (o) { return o.action; }, value: function (o) { return o.value; }, inv: function (o) { return o.inv; }, pl: function (o) { return o.pl; } }[key];
+    rows.sort(function (a, b) { var x = g(a), y = g(b); return (x < y ? -1 : x > y ? 1 : 0) * dir || (b.date - a.date); });
+    var cols = [['date', 'Fecha'], ['concept', 'Concepto'], ['asset', 'Activo'], ['category', 'Categoría'], ['action', 'Acción'], ['value', 'Importe', 'r'], ['inv', 'Δ capital', 'r'], ['pl', 'P&L', 'r']];
+    $('invOps').innerHTML = '<thead><tr>' + cols.map(function (cl) { return '<th data-s="' + cl[0] + '"' + (cl[2] ? ' class="r"' : '') + (cl[0] === key ? ' aria-sort="' + (dir > 0 ? 'ascending' : 'descending') + '"' : '') + '>' + cl[1] + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      (rows.length ? rows.map(function (o) {
+        var dep = o.action === 'Deposit';
+        return '<tr><td class="num">' + fmtDate(o.date) + '</td><td>' + esc(o.concept) + '</td><td>' + esc(o.asset) + '</td><td><i style="display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;background:' + invCatColor(o.category) + '"></i>' + esc(o.category) + '</td>' +
+          '<td><span class="tag ' + (dep ? 'dep' : 'wd') + '">' + (dep ? 'Aportación' : 'Retirada') + '</span></td><td class="r num">' + eur(o.value) + '</td>' +
+          '<td class="r num ' + (Math.abs(o.inv) < 0.005 ? 'muted' : '') + '">' + (o.inv > 0.004 ? '+' : '') + eur(o.inv) + '</td>' +
+          '<td class="r num ' + (o.pl > 0.004 ? 'inc' : o.pl < -0.004 ? 'exp' : 'muted') + '">' + (Math.abs(o.pl) < 0.005 ? '—' : (o.pl > 0 ? '+' : '') + eur(o.pl)) + '</td></tr>';
+      }).join('') : '<tr><td colspan="8" class="empty">Sin operaciones con estos filtros.</td></tr>') + '</tbody>';
+    $('opCount').textContent = rows.length + ' operaciones';
+  }
+
+  // ---------- Cambio de panel ----------
+  function setView(v) {
+    VIEW = v === 'inv' ? 'inv' : 'fin';
+    store('panel', VIEW);
+    $('viewSwitch').querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === VIEW); });
+    $('main').hidden = VIEW !== 'fin';
+    $('invMain').hidden = VIEW !== 'inv';
+    $('filters').hidden = VIEW !== 'fin' || !DATA;
+    $('footnote').hidden = VIEW !== 'fin' || !DATA;
+    $('pageTitle').textContent = VIEW === 'inv' ? 'Inversiones' : TITLE;
+    $('pageEyebrow').textContent = VIEW === 'inv' ? 'Cartera · hoja Inversiones' : 'Finanzas personales' + (MONTHS.length ? ' · desde ' + M.ymLong(MONTHS[0]).replace(/^(\S+)/, function (m) { return m.slice(0, 3); }) : '');
+    try { history.replaceState(null, '', VIEW === 'inv' ? '#inversiones' : '#finanzas'); } catch (e) {}
+    if (VIEW === 'inv') renderInv();
+    else Object.keys(charts).forEach(function (k) { charts[k].resize(); });
+  }
+
+  // ---------- Tema y tamaño ----------
+  var rT;
+  window.addEventListener('resize', function () { clearTimeout(rT); rT = setTimeout(function () { Object.keys(charts).forEach(function (k) { charts[k].resize(); }); }, 120); });
+
+  // ---------- Arranque ----------
+  $('refreshBtn').onclick = function () { load(); };
+  $('viewSwitch').onclick = function (e) { var b = e.target.closest('button'); if (b) setView(b.getAttribute('data-v')); };
+  (function () {
+    var h = (location.hash || '').replace('#', '');
+    VIEW = h === 'inversiones' ? 'inv' : h === 'finanzas' ? 'fin' : (store('panel') === 'inv' ? 'inv' : 'fin');
+    $('viewSwitch').querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === VIEW); });
+    $('main').hidden = VIEW !== 'fin'; $('invMain').hidden = VIEW !== 'inv';
+  })();
+  function noMcp() {
+    if (DATA) return;
+    showDropzone(FILE_ID ? 'Sin conexión con Google Drive en esta vista' : 'Modo local: sin Google Sheet configurado');
+  }
+  if (!FILE_ID) {
+    setTimeout(noMcp, 0);
+  } else if (window.claude && typeof window.claude.use === 'function') {
+    window.claude.use('mcp').then(function (ns) {
+      if (!ns) { noMcp(); return; }
+      mcpNs = ns; load();
+    }).catch(noMcp);
+  } else {
+    setTimeout(function () { if (!mcpNs) noMcp(); }, 0);
+  }
+  window.__cpIngest = ingest;
+})();
+</script>

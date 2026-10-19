@@ -1,0 +1,15 @@
+{
+  "name": "cuentas-personales-dashboard",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Dashboard de finanzas personales e inversiones a partir de un Google Sheet",
+  "scripts": {
+    "build": "python3 scripts/build.py",
+    "sample": "node scripts/make-sample.mjs",
+    "test": "node --test tests/",
+    "check-secrets": "bash scripts/check-secrets.sh --all"
+  },
+  "devDependencies": {
+    "xlsx": "0.18.5"
+  }
+}
