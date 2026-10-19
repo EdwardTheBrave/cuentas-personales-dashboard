@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cuentas Personales · Léeme</title>
+<style>
+  :root { --ink: #161b1d; --ink-2: #485256; --accent: #0a7d8c; --soft: #def0f2; --line: #e2e6e5; --bg: #f5f7f6; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 "Segoe UI", system-ui, -apple-system, sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 32px max(20px, env(safe-area-inset-left, 0px)) 48px; }
+  h1 { font-size: 28px; margin: 0 0 4px; }
+  h2 { font-size: 19px; margin: 32px 0 8px; }
+  p, li { color: var(--ink-2); }
+  ol { padding-left: 22px; }
+  li { margin-bottom: 8px; }
+  .box { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; }
+  .tip { background: var(--soft); border-radius: 10px; padding: 12px 16px; color: var(--ink); }
+  code, kbd { background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font-size: 14px; }
+  strong { color: var(--ink); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Cuentas Personales</h1>
+  <p>Un panel para ver tu patrimonio, tus ingresos y gastos mes a mes, y tus inversiones, a partir de una hoja de cálculo. No hay que instalar nada.</p>
+
+  <h2>Qué hay en esta carpeta</h2>
+  <div class="box">
+    <ul>
+      <li><strong>Cuentas-Personales.html</strong>: el panel. Se abre con doble clic en tu navegador.</li>
+      <li><strong>Plantilla-Cuentas.xlsx</strong>: la hoja donde apuntas tus movimientos.</li>
+      <li><strong>Ejemplo-con-datos.xlsx</strong>: la misma hoja rellena con datos inventados, para probar.</li>
+    </ul>
+  </div>
+
+  <h2>Pruébalo en un minuto</h2>
+  <ol>
+    <li>Haz doble clic en <strong>Cuentas-Personales.html</strong>. Se abre en tu navegador (Chrome, Safari, Edge…).</li>
+    <li>Pulsa <strong>Probar con datos de ejemplo</strong>, o arrastra <strong>Ejemplo-con-datos.xlsx</strong> encima de la página.</li>
+    <li>Cambia entre <strong>Finanzas</strong> e <strong>Inversiones</strong> con los botones de arriba.</li>
+  </ol>
+
+  <h2>Usarlo con tus datos</h2>
+  <ol>
+    <li><strong>Prepara tu hoja.</strong> Abre <strong>Plantilla-Cuentas.xlsx</strong> con Excel, Numbers o Google Sheets. Para Google Sheets: en <a href="https://sheets.google.com">sheets.google.com</a>, crea una hoja en blanco y usa <em>Archivo → Importar → Subir</em>, eligiendo «Reemplazar hoja de cálculo».</li>
+    <li><strong>Pon tu estructura en la pestaña Validations.</strong> Escribe tus cuentas (por ejemplo «Banco», «Tarjeta», «Ahorro») y, si quieres, un grupo para cada una. Escribe también tus subcategorías de gasto con el detalle que te guste. Puedes borrar o añadir filas.</li>
+    <li><strong>Apunta tus movimientos</strong> en Expenses, los traspasos entre tus cuentas en Internal Transfers y, si inviertes, la pestaña Inversiones. La pestaña Instrucciones lo explica columna por columna. No cambies los nombres de las cabeceras.</li>
+    <li><strong>Míralo en el panel.</strong> Si usas Google Sheets, descárgala con <em>Archivo → Descargar → Microsoft Excel (.xlsx)</em>. Después arrastra el fichero a <strong>Cuentas-Personales.html</strong>.</li>
+  </ol>
+  <p class="tip">El panel recuerda el último fichero que cargaste, así que la próxima vez que lo abras ya verás tus datos. Para actualizarlo, arrastra el fichero nuevo. Para borrarlo del navegador: <strong>Ajustes → Olvidar el último fichero</strong>.</p>
+
+  <h2>Privacidad</h2>
+  <p>Tus datos no salen de tu ordenador. El panel lee el fichero dentro de tu navegador y no lo envía a ningún sitio. Funciona incluso sin conexión a internet.</p>
+
+  <h2>Si algo no sale</h2>
+  <ul>
+    <li><strong>Aparece un aviso de cuentas o subcategorías que no están en Validations:</strong> añádelas a esa pestaña. Los datos se ven igual; el aviso solo te ayuda a mantener la hoja ordenada.</li>
+    <li><strong>No se ven los grupos:</strong> rellena la columna Group de Validations, o asígnalos en <strong>Ajustes</strong>.</li>
+    <li><strong>Dice que no encuentra la hoja Expenses:</strong> revisa que las pestañas se llamen exactamente Expenses e Internal Transfers.</li>
+  </ul>
+</main>
+</body>
+</html>

@@ -94,3 +94,39 @@ test('agente: el resumen cabe en el prompt y las herramientas responden', () => 
   assert.throws(() => T.calc.execute({ expression: 'alert(1)' }));
   assert.ok(T.transfers.execute({ account: 'Inversiones', group_by: 'year' }).filas.length > 0);
 });
+
+test('estructura: lee cuentas con grupo y subcategorías de la hoja Validations', () => {
+  const st = M.parseStructure(XLSX, sample());
+  assert.equal(st.found, true);
+  assert.deepEqual(st.accounts[0], { name: 'Nómina', group: 'Operativo' });
+  assert.ok(st.subs.some((s) => s.name === 'Salary' && s.category === 'Incomes'));
+  assert.ok(st.invCats.includes('Fondos'));
+});
+
+test('estructura: admite el formato con la lista a la derecha de la cabecera', () => {
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['Type', 'Income', null, 'Subcategory', 'Category', null, 'Account', 'Banco'],
+    [null, 'Expense', null, 'Salary', 'Incomes', null, null, 'Tarjeta']
+  ]), 'Validations');
+  const st = M.parseStructure(XLSX, wb);
+  assert.deepEqual(st.accounts.map((a) => a.name), ['Banco', 'Tarjeta']);
+  assert.equal(st.subs[0].category, 'Incomes');
+  assert.equal(M.parseStructure(XLSX, XLSX.utils.book_new()).found, false);
+});
+
+test('extrae el ID de un Google Sheet desde su enlace', () => {
+  const id = '1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_xy';
+  assert.equal(M.extractSheetId(`https://docs.google.com/spreadsheets/d/${id}/edit?gid=0#gid=0`), id);
+  assert.equal(M.extractSheetId(`https://docs.google.com/spreadsheets/u/1/d/${id}/edit`), id);
+  assert.equal(M.extractSheetId(id), id);
+  assert.equal(M.extractSheetId('https://example.com/hola'), null);
+});
+
+test('la plantilla se lee sin errores y trae su estructura', () => {
+  const wb = XLSX.read(readFileSync(join(ROOT, 'sample', 'plantilla-cuentas.xlsx')), { type: 'buffer' });
+  const d = M.parseWorkbook(XLSX, wb);
+  assert.deepEqual(d.problems, []);
+  assert.ok(d.tx.length >= 3);
+  assert.ok(M.parseStructure(XLSX, wb).accounts.length >= 5);
+});

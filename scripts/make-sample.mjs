@@ -102,6 +102,18 @@ const add = (rows, name, dateCol) => {
 add(exp, 'Expenses', 1);
 add(trf, 'Internal Transfers', 1);
 add(inv, 'Inversiones', 1);
+// Validations: la estructura del usuario (cuentas con su grupo, subcategorías con su categoría).
+const ACC = [['Nómina', 'Operativo'], ['Gastos', 'Operativo'], ['Hogar', 'Operativo'], ['Efectivo', 'Operativo'],
+  ['Ahorro', 'Ahorro disponible'], ['Imprevistos', 'Ahorro disponible'], ['Inversiones', 'Inversiones'], ['Plan Pensiones', 'Inversiones']];
+const SUB = [['Salary', 'Incomes'], ['Additional Income', 'Incomes'], ['Housing', 'Fixed'], ['Gym', 'Fixed'], ['Subscriptions', 'Fixed'],
+  ['Insurance', 'Fixed'], ['Supermarket', 'Variable'], ['Restaurants', 'Variable'], ['Leisure', 'Variable'], ['Shopping', 'Variable'],
+  ['Transport', 'Variable'], ['Health & Care', 'Variable'], ['Gifts', 'Variable'], ['Others', 'Variable']];
+const INVCAT = ['Fondos', 'Plan Pensiones', 'Cripto', 'Financiero', 'Inmobiliario'];
+const val = [['Account', 'Group', null, 'Subcategory', 'Category', null, 'Investment Category']];
+for (let i = 0; i < Math.max(ACC.length, SUB.length, INVCAT.length); i++) {
+  val.push([ACC[i]?.[0] ?? null, ACC[i]?.[1] ?? null, null, SUB[i]?.[0] ?? null, SUB[i]?.[1] ?? null, null, INVCAT[i] ?? null]);
+}
+XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(val), 'Validations');
 mkdirSync(join(ROOT, 'sample'), { recursive: true });
-XLSX.writeFile(wb, join(ROOT, 'sample', 'ejemplo-cuentas.xlsx'));
+XLSX.writeFile(wb, join(ROOT, 'sample', 'ejemplo-cuentas.xlsx'), { compression: true });
 console.log(`sample/ejemplo-cuentas.xlsx: ${exp.length - 1} movimientos, ${trf.length - 1} traspasos, ${inv.length - 1} operaciones de inversión`);

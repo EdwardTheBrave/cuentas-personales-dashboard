@@ -7,9 +7,11 @@ data/
 *.ods
 *.csv
 !sample/ejemplo-cuentas.xlsx
+!sample/plantilla-cuentas.xlsx
 
 # Builds (llevan la configuración incrustada)
 dist/
+entrega/
 
 # Entorno
 node_modules/

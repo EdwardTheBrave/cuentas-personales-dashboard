@@ -19,8 +19,8 @@ report() { echo "✖ $1"; fail=1; }
 while IFS= read -r f; do
   [[ -f "$f" ]] || continue
   case "$f" in
-    config.local.js|.secret-terms|.env*|dist/*) report "$f no debe subirse";;
-    sample/ejemplo-cuentas.xlsx) ;;
+    config.local.js|.secret-terms|.env*|dist/*|entrega/*) report "$f no debe subirse";;
+    sample/ejemplo-cuentas.xlsx|sample/plantilla-cuentas.xlsx) ;;
     *.xlsx|*.xls|*.ods|*.csv) report "$f: hoja de cálculo fuera de sample/";;
   esac
 done <<< "$files"

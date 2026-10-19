@@ -5,11 +5,13 @@
   "description": "Dashboard de finanzas personales e inversiones a partir de un Google Sheet",
   "scripts": {
     "build": "python3 scripts/build.py",
-    "sample": "node scripts/make-sample.mjs",
+    "sample": "node scripts/make-sample.mjs && node scripts/make-template.mjs",
+    "package": "python3 scripts/package.py",
     "test": "node --test tests/",
     "check-secrets": "bash scripts/check-secrets.sh --all"
   },
   "devDependencies": {
+    "echarts": "5.5.0",
     "xlsx": "0.18.5"
   }
 }

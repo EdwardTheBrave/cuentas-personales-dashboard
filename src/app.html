@@ -278,6 +278,17 @@ body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent)
 .askform { padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); }
 .askform textarea { width: 100%; resize: vertical; min-height: 64px; border: 1px solid var(--line-2); border-radius: 8px; padding: 8px 10px; font: inherit; background: var(--surface); color: var(--ink); }
 .askform textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+/* Ajustes y primer uso */
+.setbody { gap: 18px; }
+.setsec { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.setsec h3 { margin: 0; font-size: 14px; }
+.setsec p { margin: 0; color: var(--ink-2); font-size: 13px; }
+.setsec code { font-family: var(--font-num); font-size: 12px; background: var(--surface-2); padding: 1px 4px; border-radius: 4px; }
+.grpgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px 10px; align-items: center; font-size: 13px; }
+.grpgrid input, .setupinput { border: 1px solid var(--line-2); border-radius: 8px; padding: 6px 8px; font: inherit; background: var(--surface); color: var(--ink); min-width: 0; width: 100%; }
+.setupform { display: flex; gap: 8px; width: 100%; max-width: 520px; flex-wrap: wrap; }
+.setupform .setupinput { flex: 1 1 260px; }
+.seterr { color: var(--exp) !important; font-weight: 600; }
 @media (max-width: 1080px) {
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .kpi.hero { grid-column: span 2; }
@@ -305,6 +316,7 @@ body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent)
     <div class="status" id="status">
       <span class="dot busy" id="statusDot"></span><span id="statusText">Conectando con Google Drive…</span>
       <button class="btn" id="refreshBtn" type="button" disabled>Actualizar</button>
+      <button class="btn" id="setBtn" type="button" aria-controls="setPanel">Ajustes</button>
     </div>
   </header>
 
@@ -331,6 +343,13 @@ body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent)
 </div>
 
 
+<aside class="askpanel" id="setPanel" hidden aria-label="Ajustes">
+  <header class="askhead">
+    <div><span class="eyebrow">Configuración</span><h2>Ajustes</h2></div>
+    <button type="button" class="btn" id="setClose" aria-label="Cerrar">✕</button>
+  </header>
+  <div class="asklog setbody" id="setBody"></div>
+</aside>
 <button type="button" class="askfab" id="askFab" hidden aria-expanded="false" aria-controls="askPanel">Preguntar a tus datos</button>
 <aside class="askpanel" id="askPanel" hidden aria-label="Preguntar a tus datos">
   <header class="askhead">
@@ -348,6 +367,9 @@ body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent)
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
 <script>
+/*__ASSETS__*/
+</script>
+<script>
 /*__CONFIG__*/
 </script>
 <script>
@@ -357,7 +379,9 @@ body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent)
 (function () {
   'use strict';
   var CFG = window.CP_CONFIG || {};
-  var FILE_ID = String(CFG.sheetId || '').trim();
+  var FILE_ID = String(CFG.sheetId || store('sheetId') || '').trim();
+  var IN_CLAUDE = !!(window.claude && typeof window.claude.use === 'function');
+  var ASSETS = window.CP_ASSETS || {};
   var TITLE = CFG.title || 'Cuentas Personales';
   var SERVER = 'Google Drive';
   var TOOL = 'download_file_content';
@@ -413,7 +437,11 @@ body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent)
     if (!f) return;
     var rd = new FileReader();
     rd.onload = function () {
-      try { ingest(XLSX.read(new Uint8Array(rd.result), { type: 'array' }), 'Fichero local · ' + f.name); }
+      try {
+        var bytes = new Uint8Array(rd.result);
+        ingest(XLSX.read(bytes, { type: 'array' }), 'Fichero local · ' + f.name);
+        if (DATA) idbSet({ name: f.name, bytes: bytes, savedAt: Date.now() });
+      }
       catch (e) { setStatus('bad', 'No se pudo leer el fichero'); banner('err', 'No se pudo leer «' + esc(f.name) + '» como hoja de cálculo. Exporta el Sheet como .xlsx (Archivo → Descargar → Microsoft Excel).'); }
     };
     rd.readAsArrayBuffer(f);
@@ -431,15 +459,88 @@ body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent)
     e.preventDefault(); document.body.classList.remove('dragging');
     loadFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]);
   });
+  // Último fichero cargado, guardado solo en este navegador (IndexedDB), para no arrastrarlo cada vez.
+  function idb(mode, fn) {
+    return new Promise(function (resolve) {
+      try {
+        var req = indexedDB.open('cuentas-personales', 1);
+        req.onupgradeneeded = function () { req.result.createObjectStore('files'); };
+        req.onerror = function () { resolve(null); };
+        req.onsuccess = function () {
+          try {
+            var tx = req.result.transaction('files', mode), st = tx.objectStore('files'), r = fn(st);
+            tx.oncomplete = function () { resolve(r && 'result' in r ? r.result : true); };
+            tx.onerror = function () { resolve(null); };
+          } catch (e) { resolve(null); }
+        };
+      } catch (e) { resolve(null); }
+    });
+  }
+  function idbGet() { return idb('readonly', function (st) { return st.get('last'); }); }
+  function idbSet(v) { return idb('readwrite', function (st) { st.put(v, 'last'); }); }
+  function idbDel() { return idb('readwrite', function (st) { st.delete('last'); }); }
+
+  function loadSample() {
+    if (!ASSETS.sample) return;
+    ingest(XLSX.read(ASSETS.sample, { type: 'base64' }), 'Datos de ejemplo (inventados)');
+  }
+  function downloadTemplate() {
+    if (!ASSETS.template) return;
+    var bin = atob(ASSETS.template), arr = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    var url = URL.createObjectURL(new Blob([arr], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    var a = document.createElement('a'); a.href = url; a.download = 'Plantilla-Cuentas.xlsx';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+  }
+  function startActions() {
+    return '<div class="frow" style="justify-content:center">' +
+      '<button class="btn primary" type="button" data-pick>Elegir fichero .xlsx</button>' +
+      (ASSETS.sample ? '<button class="btn" type="button" data-sample>Probar con datos de ejemplo</button>' : '') +
+      (ASSETS.template && !IN_CLAUDE ? '<button class="btn" type="button" data-template>Descargar plantilla</button>' : '') + '</div>';
+  }
+  function wireStart() {
+    document.querySelectorAll('[data-pick]').forEach(function (b) { b.onclick = pickFile; });
+    document.querySelectorAll('[data-sample]').forEach(function (b) { b.onclick = loadSample; });
+    document.querySelectorAll('[data-template]').forEach(function (b) { b.onclick = downloadTemplate; });
+  }
   function showDropzone(reason) {
     setStatus('bad', reason);
     var html = '<div class="dropzone"><h2>Carga tu hoja de cálculo</h2>' +
-      '<p>Arrastra aquí el .xlsx exportado de tu Google Sheet, o elígelo desde tu ordenador. Se procesa solo en este navegador: no se sube a ningún sitio.</p>' +
-      '<button class="btn primary" type="button" data-pick>Elegir fichero .xlsx</button>' +
-      '<p class="hint">Necesita las hojas Expenses e Internal Transfers (y opcionalmente Inversiones) con las cabeceras del README.</p></div>';
+      '<p>Arrastra aquí el .xlsx de tus cuentas o elígelo desde tu ordenador. Se procesa solo en este navegador: no se sube a ningún sitio.</p>' +
+      startActions() +
+      '<p class="hint">Necesita las hojas Expenses e Internal Transfers; Inversiones y Validations son opcionales. Si usas Google Sheets: Archivo → Descargar → Microsoft Excel (.xlsx).</p></div>';
     $('main').innerHTML = html;
     $('invMain').innerHTML = html;
-    document.querySelectorAll('[data-pick]').forEach(function (b) { b.onclick = pickFile; });
+    wireStart();
+  }
+  // Primer uso dentro de Claude sin hoja configurada: se pega el enlace y se recuerda en este navegador.
+  function showSetup(err) {
+    setStatus('bad', 'Falta conectar tu Google Sheet');
+    var html = '<div class="dropzone"><h2>Conecta tu Google Sheet</h2>' +
+      '<p>Pega el enlace de tu hoja (el que ves en la barra del navegador al abrirla). El dashboard la leerá con tu conector Google Drive cada vez que lo abras.</p>' +
+      '<form class="setupform" data-setup><input type="url" class="setupinput" placeholder="https://docs.google.com/spreadsheets/d/…" aria-label="Enlace de tu Google Sheet" required>' +
+      '<button class="btn primary" type="submit">Conectar</button></form>' +
+      (err ? '<p class="seterr">' + esc(err) + '</p>' : '') +
+      '<p class="hint">¿Aún no tienes la hoja? Pide la plantilla a quien te pasó este enlace. También puedes cargar un .xlsx sin conectar nada:</p>' +
+      startActions() + '</div>';
+    $('main').innerHTML = html;
+    $('invMain').innerHTML = html;
+    document.querySelectorAll('[data-setup]').forEach(function (f) {
+      f.onsubmit = function (e) {
+        e.preventDefault();
+        var id = M.extractSheetId(f.querySelector('input').value);
+        if (!id) { showSetup('Ese enlace no parece de una hoja de Google Sheets. Cópialo entero desde la barra de direcciones.'); return; }
+        useSheet(id);
+      };
+    });
+    wireStart();
+  }
+  function useSheet(id) {
+    FILE_ID = id;
+    store('sheetId', id);
+    DATA = null;
+    connect();
   }
 
   var mcpNs = null, loading = false;
@@ -502,6 +603,9 @@ body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent)
       return;
     }
     banner();
+    STRUCT = M.parseStructure(XLSX, wb);
+    computeGroups();
+    if (!GROUPS.length && S.nwMode === 'groups') S.nwMode = 'total';
     MONTHS = M.monthRange(DATA, todayYm());
     buildDims();
     var lastData = MONTHS[MONTHS.length - 1];
@@ -511,7 +615,14 @@ body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent)
     var n = DATA.tx.filter(function (t) { return !t.opening; }).length;
     setStatus('ok', sourceLabel + ' · ' + n.toLocaleString('es-ES') + ' movimientos · ' + DATA.tr.length.toLocaleString('es-ES') + ' traspasos');
     $('refreshBtn').disabled = !mcpNs;
-    if (DATA.problems.length) banner('warn', esc(DATA.problems.join(' ')));
+    var notes = DATA.problems.slice();
+    if (STRUCT.found) {
+      var missAcc = DIMS.account.filter(function (a) { return structIndex('account', a) === 1e6; });
+      var missSub = DIMS.sub.filter(function (x) { return structIndex('sub', x) === 1e6; });
+      if (missAcc.length) notes.push('Cuentas con movimientos que no están en la hoja Validations: ' + missAcc.join(', ') + '.');
+      if (missSub.length) notes.push('Subcategorías que no están en Validations: ' + missSub.join(', ') + '.');
+    }
+    if (notes.length) banner('warn', esc(notes.join(' ')));
     buildLayout();
     buildFilters();
     renderAll();
@@ -531,7 +642,7 @@ body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent)
       subCat[t.sub] = subCat[t.sub] || t.category;
     });
     DATA.tr.forEach(function (t) { acc[t.from] = acc[t.from] || 0; acc[t.to] = acc[t.to] || 0; });
-    DIMS = { account: Object.keys(acc).sort(coll), category: Object.keys(cat).sort(coll), sub: Object.keys(sub).sort(coll), subCat: subCat, counts: { account: acc, category: cat, sub: sub } };
+    DIMS = { account: orderedAccounts(Object.keys(acc)), category: Object.keys(cat).sort(coll), sub: Object.keys(sub).sort(function (a, b) { return structIndex('sub', a) - structIndex('sub', b) || coll(a, b); }), subCat: subCat, counts: { account: acc, category: cat, sub: sub } };
     // Color por entidad: ranking global (sin filtros) para que un filtro nunca repinte las series.
     var full = M.balances(DATA, MONTHS);
     var last = MONTHS.length - 1;
@@ -684,7 +795,7 @@ body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent)
         '<div class="shead"><div><span class="eyebrow">Resumen</span><h2 id="hResumen">Patrimonio y saldos</h2></div></div>' +
         '<div class="kpis" id="kpis"></div>' +
         '<div class="grid">' +
-          '<div class="card span-7"><div class="chead"><div><h2>Patrimonio neto</h2><div class="sub" id="nwSub"></div></div>' + '<div class="frow"><div class="field" id="nwGroupBox" hidden><label for="nwGroup">Grupo</label><select id="nwGroup"></select></div>' + seg('nwMode', [['total', 'Total'], ['groups', 'Por grupo'], ['accounts', 'Por cuenta']], S.nwMode) + '</div></div><div class="legend" id="nwLegend"></div><div class="chart tall" id="chNW" role="img" aria-label="Evolución mensual del patrimonio neto"></div></div>' +
+          '<div class="card span-7"><div class="chead"><div><h2>Patrimonio neto</h2><div class="sub" id="nwSub"></div></div>' + '<div class="frow"><div class="field" id="nwGroupBox" hidden><label for="nwGroup">Grupo</label><select id="nwGroup"></select></div>' + seg('nwMode', [['total', 'Total']].concat(GROUPS.length ? [['groups', 'Por grupo']] : []).concat([['accounts', 'Por cuenta']]), S.nwMode) + '</div></div><div class="legend" id="nwLegend"></div><div class="chart tall" id="chNW" role="img" aria-label="Evolución mensual del patrimonio neto"></div></div>' +
           '<div class="card span-5"><div class="chead"><div><h2>Saldo por cuenta</h2><div class="sub" id="accSub"></div></div></div><div class="tablebox" id="accTable"></div></div>' +
         '</div>' +
       '</section>' +
@@ -834,9 +945,38 @@ body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent)
 
   // Grupos de cuentas, en el orden definido en la configuración.
   var GROUP_SLOTS = ['--s1', '--s3', '--s5', '--s2', '--s7', '--s4', '--s6', '--s8'];
-  var GROUPS = (CFG.accountGroups || []).map(function (g, i) {
-    return { name: g.name, accounts: g.accounts || [], color: g.color || GROUP_SLOTS[i % GROUP_SLOTS.length] };
-  });
+  var GROUPS = [], GROUP_SOURCE = 'ninguno', STRUCT = { found: false, accounts: [], subs: [], invCats: [] };
+  // Prioridad: grupos guardados en Ajustes > columna Grupo de la hoja Validations > config.js.
+  function computeGroups() {
+    var cfgGroups = CFG.accountGroups || [], pairs = [], src = 'ninguno';
+    var over = store('groups');
+    if (over && typeof over === 'object' && Object.keys(over).length) {
+      src = 'ajustes';
+      orderedAccounts(Object.keys(over)).forEach(function (a) { if (over[a]) pairs.push([a, over[a]]); });
+    } else if (STRUCT.accounts.some(function (a) { return a.group; })) {
+      src = 'hoja';
+      STRUCT.accounts.forEach(function (a) { if (a.group) pairs.push([a.name, a.group]); });
+    } else if (cfgGroups.length) {
+      src = 'config';
+      cfgGroups.forEach(function (g) { (g.accounts || []).forEach(function (a) { pairs.push([a, g.name]); }); });
+    }
+    var byName = {}, list = [];
+    pairs.forEach(function (p) {
+      if (!byName[p[1]]) { byName[p[1]] = { name: p[1], accounts: [] }; list.push(byName[p[1]]); }
+      byName[p[1]].accounts.push(p[0]);
+    });
+    list.forEach(function (g, i) {
+      var c = cfgGroups.filter(function (x) { return x.name === g.name && x.color; })[0];
+      g.color = c ? c.color : GROUP_SLOTS[i % GROUP_SLOTS.length];
+    });
+    GROUPS = list; GROUP_SOURCE = src;
+  }
+  function structIndex(kind, name) {
+    var arr = kind === 'sub' ? STRUCT.subs : STRUCT.accounts, n = String(name).toLowerCase();
+    for (var i = 0; i < arr.length; i++) if (arr[i].name.toLowerCase() === n) return i;
+    return 1e6;
+  }
+  function orderedAccounts(names) { return names.slice().sort(function (a, b) { return structIndex('account', a) - structIndex('account', b) || coll(a, b); }); }
   var OTHER_GROUP = 'Otras cuentas';
   function groupOf(account) {
     var a = account.toLowerCase();
@@ -922,11 +1062,11 @@ body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent)
     function pct(v) { return '<td class="r num muted">' + (total ? fmtPct.format(v / total) : '—') + '</td>'; }
     var body = '';
     groupOrder(Object.keys(byGroup)).forEach(function (g) {
-      var accs = byGroup[g].sort(coll);
+      var accs = orderedAccounts(byGroup[g]);
       var gr = row(gb[g]);
       if (g === OTHER_GROUP && Math.abs(gr.v) < 0.005 && accs.every(function (a) { return Math.abs(bal.byAccount[a][iTo]) < 0.005; })) return;
       var closed = S.closed.has(g);
-      body += '<tr class="g' + (closed ? ' closed' : '') + '" data-g="' + esc(g) + '" aria-expanded="' + !closed + '"><td><i style="display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:8px;background:' + groupColor(g) + '"></i>' + esc(g) + '</td><td class="r num">' + eur(gr.v) + '</td>' + pct(gr.v) + d(gr.d1) + d(gr.d12) + '</tr>';
+      body += '<tr class="g' + (closed ? ' closed' : '') + '" data-g="' + esc(g) + '" aria-expanded="' + !closed + '"><td><i style="display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:8px;background:' + groupColor(g) + '"></i>' + esc(GROUPS.length ? g : 'Cuentas') + '</td><td class="r num">' + eur(gr.v) + '</td>' + pct(gr.v) + d(gr.d1) + d(gr.d12) + '</tr>';
       if (!closed) accs.forEach(function (a) { var r = row(bal.byAccount[a]); body += '<tr class="c"><td>' + esc(a) + '</td><td class="r num">' + eur(r.v) + '</td>' + pct(r.v) + d(r.d1) + d(r.d12) + '</tr>'; });
     });
     $('accTable').innerHTML = '<table class="acct"><thead><tr><th>Grupo / cuenta</th><th class="r">Saldo</th><th class="r">% total</th><th class="r" title="Saldo actual menos el saldo a fin del mes anterior">vs mes ant.</th><th class="r" title="Saldo actual menos el saldo de hace 12 meses">vs hace 12 m</th></tr></thead><tbody>' + body +
@@ -1587,6 +1727,73 @@ body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent)
     }).catch(function () {});
   }
 
+  // ---------- Ajustes: hoja conectada, grupos de cuentas y datos guardados ----------
+  function openSettings(open) {
+    $('setPanel').hidden = !open;
+    $('setBtn').setAttribute('aria-expanded', String(open));
+    if (open) renderSettings();
+  }
+  function renderSettings() {
+    var h = '';
+    if (IN_CLAUDE && !CFG.sheetId) {
+      h += '<section class="setsec"><h3>Tu Google Sheet</h3>' +
+        (FILE_ID ? '<p>Conectada a la hoja <code>…' + esc(FILE_ID.slice(-8)) + '</code>. Se recuerda en este navegador.</p>' : '<p>No hay ninguna hoja conectada.</p>') +
+        '<form class="setupform" id="setSheetForm"><input type="url" class="setupinput" id="setSheetUrl" placeholder="Pega el enlace de otra hoja" aria-label="Enlace de tu Google Sheet">' +
+        '<button class="btn primary" type="submit">Usar esta hoja</button></form><p class="seterr" id="setSheetErr" hidden></p>' +
+        (FILE_ID ? '<button class="btn" type="button" id="setSheetForget">Desconectar la hoja</button>' : '') + '</section>';
+    } else if (CFG.sheetId) {
+      h += '<section class="setsec"><h3>Tu Google Sheet</h3><p>La hoja está fijada en la configuración del proyecto (config.local.js).</p></section>';
+    }
+    if (DATA) {
+      var src = { ajustes: 'Los grupos vienen de estos ajustes.', hoja: 'Los grupos vienen de la columna Group de tu hoja Validations.', config: 'Los grupos vienen de la configuración del proyecto.', ninguno: 'Ahora no hay grupos: todas las cuentas se muestran juntas.' }[GROUP_SOURCE];
+      var current = {}; GROUPS.forEach(function (g) { g.accounts.forEach(function (a) { current[a.toLowerCase()] = g.name; }); });
+      var names = GROUPS.map(function (g) { return g.name; });
+      h += '<section class="setsec"><h3>Grupos de cuentas</h3><p>' + src + ' Escribe un grupo para cada cuenta (o déjalo vacío) y guarda. Los grupos ordenan la tabla de saldos y la vista «Por grupo».</p>' +
+        '<datalist id="grpList">' + names.map(function (n) { return '<option value="' + esc(n) + '">'; }).join('') + '</datalist>' +
+        '<div class="grpgrid">' + DIMS.account.map(function (a, i) {
+          return '<label for="grp' + i + '">' + esc(a) + '</label><input id="grp' + i + '" data-acc="' + esc(a) + '" list="grpList" value="' + esc(current[a.toLowerCase()] || '') + '" placeholder="Sin grupo">';
+        }).join('') + '</div>' +
+        '<div class="frow"><button class="btn primary" type="button" id="grpSave">Guardar grupos</button>' +
+        (GROUP_SOURCE === 'ajustes' ? '<button class="btn" type="button" id="grpReset">Volver a los grupos de la hoja</button>' : '') + '</div>' +
+        '<p class="hint">Se guardan en este navegador. Para que valgan en todos tus dispositivos, añade una columna Group junto a Account en la hoja Validations.</p></section>';
+      h += '<section class="setsec"><h3>Estructura leída</h3><p>' + (STRUCT.found
+        ? 'Hoja Validations: ' + STRUCT.accounts.length + ' cuentas, ' + STRUCT.subs.length + ' subcategorías' + (STRUCT.invCats.length ? ', ' + STRUCT.invCats.length + ' categorías de inversión' : '') + '. Cuentas y subcategorías se ordenan como en esa hoja.'
+        : 'No hay hoja Validations: se usan las cuentas y subcategorías que aparecen en los movimientos, en orden alfabético.') + '</p></section>';
+    }
+    if (!FILE_ID) {
+      h += '<section class="setsec"><h3>Datos guardados en este navegador</h3><p>El último Excel que cargaste se guarda aquí para no tener que arrastrarlo cada vez. No sale de este ordenador.</p>' +
+        '<button class="btn" type="button" id="idbForget">Olvidar el último fichero</button><p class="hint" id="idbMsg" hidden></p></section>';
+    }
+    $('setBody').innerHTML = h || '<p>Carga primero tus datos.</p>';
+    var f = $('setSheetForm');
+    if (f) f.onsubmit = function (e) {
+      e.preventDefault();
+      var id = M.extractSheetId($('setSheetUrl').value);
+      if (!id) { $('setSheetErr').hidden = false; $('setSheetErr').textContent = 'Ese enlace no parece de una hoja de Google Sheets.'; return; }
+      openSettings(false); useSheet(id);
+    };
+    if ($('setSheetForget')) $('setSheetForget').onclick = function () { store('sheetId', ''); FILE_ID = ''; DATA = null; openSettings(false); showSetup(); };
+    if ($('grpSave')) $('grpSave').onclick = function () {
+      var map = {};
+      $('setBody').querySelectorAll('input[data-acc]').forEach(function (inp) { map[inp.getAttribute('data-acc')] = inp.value.trim(); });
+      store('groups', map); applyGroups();
+    };
+    if ($('grpReset')) $('grpReset').onclick = function () { store('groups', null); applyGroups(); };
+    if ($('idbForget')) $('idbForget').onclick = function () { idbDel().then(function () { $('idbMsg').hidden = false; $('idbMsg').textContent = 'Hecho. La próxima vez que abras el archivo empezará vacío.'; }); };
+  }
+  function applyGroups() {
+    computeGroups();
+    if (!GROUPS.length && S.nwMode === 'groups') S.nwMode = 'total';
+    S.closed = new Set();
+    buildLayout(); renderAll();
+    renderSettings();
+  }
+  function initSettings() {
+    $('setBtn').onclick = function () { openSettings($('setPanel').hidden); };
+    $('setClose').onclick = function () { openSettings(false); };
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('setPanel').hidden) openSettings(false); });
+  }
+
   // ---------- Tema y tamaño ----------
   var rT;
   window.addEventListener('resize', function () { clearTimeout(rT); rT = setTimeout(function () { Object.keys(charts).forEach(function (k) { charts[k].resize(); }); }, 120); });
@@ -1594,6 +1801,7 @@ body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent)
   // ---------- Arranque ----------
   $('refreshBtn').onclick = function () { load(); };
   initAsk();
+  initSettings();
   $('viewSwitch').onclick = function (e) { var b = e.target.closest('button'); if (b) setView(b.getAttribute('data-v')); };
   (function () {
     var h = (location.hash || '').replace('#', '');
@@ -1605,16 +1813,26 @@ body.dragging .dropzone, body.dragging .wrap { outline: 3px dashed var(--accent)
     if (DATA) return;
     showDropzone(FILE_ID ? 'Sin conexión con Google Drive en esta vista' : 'Modo local: sin Google Sheet configurado');
   }
-  if (!FILE_ID) {
-    setTimeout(noMcp, 0);
-  } else if (window.claude && typeof window.claude.use === 'function') {
+  function connect() {
+    if (!IN_CLAUDE) { noMcp(); return; }
+    if (mcpNs) { load(); return; }
     window.claude.use('mcp').then(function (ns) {
       if (!ns) { noMcp(); return; }
       mcpNs = ns; load();
     }).catch(noMcp);
-  } else {
-    setTimeout(function () { if (!mcpNs) noMcp(); }, 0);
   }
+  function bootLocal() {
+    idbGet().then(function (last) {
+      if (DATA) return;
+      if (last && last.bytes) {
+        try { ingest(XLSX.read(last.bytes, { type: 'array' }), 'Último fichero · ' + last.name); return; } catch (e) {}
+      }
+      noMcp();
+    });
+  }
+  if (FILE_ID) connect();
+  else if (IN_CLAUDE) setTimeout(function () { showSetup(); }, 0);
+  else bootLocal();
   window.__cpIngest = ingest;
 })();
 </script>

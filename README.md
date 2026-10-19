@@ -13,6 +13,27 @@ Dashboard de finanzas personales e inversiones construido a partir de un Google 
 
 Todo se calcula en el navegador. Es un único fichero HTML y no tiene servidor ni base de datos.
 
+## Para alguien sin conocimientos técnicos
+
+Hay dos formas de pasárselo a alguien sin que tenga que instalar nada.
+
+**1. Kit sin instalación.** Ejecuta `npm install` y después `npm run package`. Se genera la carpeta `entrega/` con:
+- `Cuentas-Personales.html`: el panel en un solo archivo, que funciona sin internet;
+- `Plantilla-Cuentas.xlsx`;
+- `Ejemplo-con-datos.xlsx`;
+- `LEEME.html` con las instrucciones.
+
+Comprime la carpeta y envíala. La otra persona hace doble clic en el HTML y arrastra su Excel. No necesita cuenta de Claude. El panel recuerda en su navegador el último fichero que cargó.
+
+**2. Enlace de Claude.** Publica `dist/artifact.html`, generado con `config.example.js` (sin `sheetId`), con `{"mcp": …, "sample": {}}` y compártelo desde claude.ai. La primera vez que lo abre, la otra persona pega el enlace de su Google Sheet; se recuerda en su navegador y lo puede cambiar en Ajustes. Lee su hoja en vivo e incluye el asistente. Necesita cuenta de Claude y el conector Google Drive.
+
+**Cada persona define su estructura** en la hoja `Validations`:
+- cuentas, con un grupo opcional en la columna Group;
+- subcategorías con su categoría;
+- categorías de inversión.
+
+El panel ordena cuentas y subcategorías como en esa hoja y avisa si los movimientos usan alguna que no está dada de alta. Los grupos también se pueden asignar en **Ajustes**, sin tocar la hoja.
+
 ## Dos formas de usarlo
 
 ### 1. Modo local, sin cuentas ni conectores
@@ -92,6 +113,8 @@ El dashboard busca las hojas por su nombre y las columnas por el nombre de la ca
 - `accountGroups`: grupos de cuentas para los saldos y la vista «Por grupo». Las cuentas sin grupo aparecen en «Otras cuentas».
 - `investmentCategoryColors`: color fijo por categoría de inversión (opcional).
 
+Prioridad de los grupos de cuentas: primero los guardados en **Ajustes**, después la columna Group de `Validations` y por último `accountGroups` de la configuración.
+
 ## Privacidad
 
 El repositorio no contiene datos personales. Nunca se versionan:
@@ -113,7 +136,8 @@ Bloquea emails, IDs de Sheet, tokens y claves con formato conocido. También blo
 
 ```bash
 npm test          # tests del modelo sobre el Excel de ejemplo
-npm run sample    # regenera sample/ejemplo-cuentas.xlsx (datos inventados, semilla fija)
+npm run sample    # regenera el ejemplo (datos inventados, semilla fija) y la plantilla
+npm run package   # genera entrega/ (kit sin instalación)
 npm run build     # dist/dashboard.html (local) y dist/artifact.html (Claude)
 ```
 

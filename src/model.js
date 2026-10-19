@@ -268,8 +268,53 @@ var FinModel = (function () {
     });
   }
 
+  // Hoja "Validations": la estructura que define cada usuario (cuentas y su grupo, subcategorías y su
+  // categoría, categorías de inversión). Se busca por cabecera en las primeras filas. Si bajo una
+  // cabecera no hay valores, se leen de la columna de la derecha empezando en la misma fila.
+  function parseStructure(XLSX, wb) {
+    var ws = findSheet(wb, 'Validations') || findSheet(wb, 'Validaciones') || findSheet(wb, 'Estructura');
+    var empty = { found: false, accounts: [], subs: [], invCats: [] };
+    if (!ws) return empty;
+    var rows = rowsOf(XLSX, ws);
+    var want = { account: ['account', 'accounts', 'cuenta', 'cuentas'], group: ['group', 'grupo', 'account group', 'grupo de cuenta'],
+      sub: ['subcategory', 'subcategoria', 'subcategorias'], cat: ['category', 'categoria'],
+      inv: ['investment category', 'categoria de inversion', 'categoria inversion', 'investment categories'] };
+    var pos = {};
+    for (var r = 0; r < Math.min(rows.length, 6); r++) {
+      var row = rows[r] || [];
+      for (var c = 0; c < row.length; c++) {
+        var h = norm(row[c]);
+        for (var k in want) if (!pos[k] && want[k].indexOf(h) !== -1) pos[k] = { r: r, c: c };
+      }
+    }
+    function column(p) {
+      var out = [];
+      if (!p) return out;
+      for (var i = p.r + 1; i < rows.length; i++) { var v = str((rows[i] || [])[p.c]); if (v) out.push({ row: i, v: v }); }
+      if (!out.length) for (var j = p.r; j < rows.length; j++) { var w = str((rows[j] || [])[p.c + 1]); if (w) out.push({ row: j, v: w }); }
+      return out;
+    }
+    function pairCol(p) { return p ? function (row) { return str((rows[row] || [])[p.c]); } : function () { return ''; }; }
+    var grp = pairCol(pos.group), cat = pairCol(pos.cat);
+    var seen = {};
+    var accounts = column(pos.account).filter(function (x) { return !seen['a' + x.v] && (seen['a' + x.v] = 1); })
+      .map(function (x) { return { name: x.v, group: grp(x.row) }; });
+    var subs = column(pos.sub).filter(function (x) { return !seen['s' + x.v] && (seen['s' + x.v] = 1); })
+      .map(function (x) { return { name: x.v, category: cat(x.row) }; });
+    var invCats = column(pos.inv).map(function (x) { return x.v; });
+    return { found: !!(accounts.length || subs.length || invCats.length), accounts: accounts, subs: subs, invCats: invCats };
+  }
+
+  // ID de un Google Sheet a partir de su enlace (o del propio ID).
+  function extractSheetId(input) {
+    var s = String(input || '').trim();
+    var m = s.match(/\/spreadsheets\/(?:u\/\d+\/)?d\/([A-Za-z0-9_-]{20,})/) || s.match(/[?&]id=([A-Za-z0-9_-]{20,})/);
+    if (m) return m[1];
+    return /^[A-Za-z0-9_-]{25,}$/.test(s) ? s : null;
+  }
+
   return {
-    MONTHS: MONTHS, parseWorkbook: parseWorkbook, parseInvestments: parseInvestments, positions: positions, monthRange: monthRange, balances: balances,
+    MONTHS: MONTHS, parseWorkbook: parseWorkbook, parseStructure: parseStructure, extractSheetId: extractSheetId, parseInvestments: parseInvestments, positions: positions, monthRange: monthRange, balances: balances,
     ym: ym, ymLabel: ymLabel, ymLong: ymLong, nextYm: nextYm, parseAmount: parseAmount, round2: round2
   };
 })();
